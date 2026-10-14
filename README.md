@@ -1,0 +1,125 @@
+# mycelium
+
+面向 Rust 的 agent SDK：**分层通用核心**。内核不假设产品形态，同一套抽象既可嵌入应用
+（框架形态），也可演进为本地 Agent 运行时（服务形态）。
+
+> **状态：v0.1 架构骨架。** 领域类型、SPI 契约、错误体系、运行状态机与形式化契约文档
+> 已就绪并有测试覆盖；执行循环与具体模型 Provider **尚未实现** ——
+> `AgentRuntime::run` 当前会显式返回 `AgentError::Unimplemented`（绝不静默成功）。
+> 计划见 [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md)。
+
+## 架构
+
+```text
+mycelium（门面：re-export + prelude）
+   └── mycelium-runtime（AgentRuntime / Session / RunHooks）
+          ├── mycelium-model（ModelProvider SPI：请求 / 流式增量 / 能力）
+          └── mycelium-tools（Tool SPI：注册表 / 执行上下文）
+                 └── mycelium-core（消息 / 工具协议 / 事件 / 状态机 / 错误 / 配置）
+```
+
+| crate | 职责 |
+| :--- | :--- |
+| `mycelium-core` | 领域内核：标识、消息、工具协议、事件、运行状态机、错误分类矩阵、配置 |
+| `mycelium-model` | 模型提供方抽象（SPI）：`ModelProvider` / `ModelRequest` / `ModelDelta` |
+| `mycelium-tools` | 工具抽象（SPI）与注册表：`Tool` / `ToolRegistry` |
+| `mycelium-runtime` | 执行引擎与装配：`AgentRuntime` / `Session` / `RunHooks` |
+| `mycelium` | 门面：统一 re-export 与 `prelude` |
+
+## 快速开始
+
+```rust
+use std::sync::Arc;
+
+use mycelium::prelude::*;
+
+/// 最小 Provider：返回固定文本（演示接线；真实实现见 roadmap v0.2）。
+struct EchoProvider;
+
+#[async_trait]
+impl ModelProvider for EchoProvider {
+    fn id(&self) -> &str {
+        "echo"
+    }
+
+    fn capabilities(&self) -> ModelCapabilities {
+        ModelCapabilities {
+            supports_streaming: true,
+            ..Default::default()
+        }
+    }
+
+    async fn stream(&self, _request: ModelRequest) -> Result<ModelStream, ModelError> {
+        Ok(stream_from_deltas(vec![
+            ModelDelta::TextDelta { text: "pong".to_owned() },
+            ModelDelta::Finished { stop_reason: StopReason::EndTurn },
+        ]))
+    }
+}
+
+/// 最小工具：回显入参。
+struct EchoTool;
+
+#[async_trait]
+impl Tool for EchoTool {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::new(
+            ToolName::new("echo").expect("合法工具名"),
+            "回显输入参数",
+            serde_json::json!({ "type": "object" }),
+        )
+        .expect("合法 JSON Schema")
+    }
+
+    async fn call(
+        &self,
+        _context: &ToolContext,
+        arguments: serde_json::Value,
+    ) -> Result<ToolOutput, ToolError> {
+        Ok(ToolOutput::success(arguments.to_string()))
+    }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let config = AgentConfig::builder()
+        .model(ModelId::new("mycelium-echo")?)
+        .max_steps(4)
+        .build()?;
+
+    let agent = AgentRuntime::builder()
+        .config(config)
+        .provider(Arc::new(EchoProvider))
+        .tool(Arc::new(EchoTool))
+        .build()?;
+
+    // v0.1 骨架：执行循环尚未实现；run 返回显式 Unimplemented（绝不静默成功）。
+    let result = agent.run(RunInput::from_user_text("ping")).await;
+    assert!(matches!(result, Err(AgentError::Unimplemented { .. })));
+
+    Ok(())
+}
+```
+
+## 文档
+
+- [`docs/architecture/overview.md`](docs/architecture/overview.md) —— 架构总览与关键决策
+- [`docs/architecture/lifecycle.md`](docs/architecture/lifecycle.md) —— 运行生命周期状态机
+- [`docs/spec/core.md`](docs/spec/core.md) —— 形式化约束矩阵（FC-Matrix，单一真实来源）
+- [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md) —— 路线图
+
+## 开发
+
+```bash
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo fmt --all --check
+```
+
+- MSRV：Rust 1.97（`rust-version`，已在 stable 1.97.1 验证）。
+- 变更纪律：公共行为变更必须先更新 `docs/spec/core.md`（契约优先），再改测试，最后改实现。
+
+## 许可证
+
+待定（发布前决策；Rust 生态惯例为 `MIT OR Apache-2.0`）。

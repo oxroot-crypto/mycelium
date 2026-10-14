@@ -1,0 +1,17 @@
+[package]
+name = "mycelium-tools"
+description = "mycelium 工具抽象（SPI）与注册表：Tool trait、执行上下文、ToolOutput 与 ToolRegistry"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+mycelium-core.workspace = true
+async-trait.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

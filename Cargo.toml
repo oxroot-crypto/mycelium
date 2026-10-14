@@ -1,0 +1,55 @@
+# mycelium 工作区清单。
+# 依赖策略：只引入经过论证的第三方依赖，理由登记于 docs/architecture/overview.md §9。
+[workspace]
+resolver = "3"
+members = [
+    "crates/mycelium",
+    "crates/mycelium-core",
+    "crates/mycelium-model",
+    "crates/mycelium-runtime",
+    "crates/mycelium-tools",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+# MSRV：以已在 stable 1.97.1 完成验证的最低次版本声明，不得声称未验证的支持范围。
+rust-version = "1.97"
+repository = "https://github.com/oxroot-crypto/mycelium"
+publish = false
+
+[workspace.dependencies]
+mycelium-core = { path = "crates/mycelium-core", version = "0.1.0" }
+mycelium-model = { path = "crates/mycelium-model", version = "0.1.0" }
+mycelium-runtime = { path = "crates/mycelium-runtime", version = "0.1.0" }
+mycelium-tools = { path = "crates/mycelium-tools", version = "0.1.0" }
+
+async-trait = "0.1"
+futures-core = "0.3"
+futures-util = "0.3"
+proptest = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+tokio = "1"
+tokio-util = "0.7"
+uuid = { version = "1", features = ["v7", "serde"] }
+
+[workspace.lints.rust]
+unsafe_code = "forbid"
+missing_docs = "deny"
+unreachable_pub = "deny"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+dbg_macro = "deny"
+
+# 发布构建：以运行时性能与产物体积为先，代价是编译时间（骨架阶段影响可忽略）。
+[profile.release]
+lto = "thin"
+codegen-units = 1

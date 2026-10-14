@@ -1,0 +1,21 @@
+[package]
+name = "mycelium"
+description = "mycelium agent SDK 门面：统一 re-export、prelude 与端到端示例"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+mycelium-core.workspace = true
+mycelium-model.workspace = true
+mycelium-runtime.workspace = true
+mycelium-tools.workspace = true
+
+[dev-dependencies]
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
