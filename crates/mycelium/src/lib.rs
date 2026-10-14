@@ -10,6 +10,9 @@ pub use mycelium_model as model;
 pub use mycelium_runtime as runtime;
 pub use mycelium_tools as tools;
 
+#[cfg(feature = "provider-openai")]
+pub use mycelium_provider_openai as provider_openai;
+
 /// 常用类型的统一入口：`use mycelium::prelude::*;`
 pub mod prelude {
     pub use crate::core::{
@@ -18,12 +21,12 @@ pub mod prelude {
         ToolCall, ToolCallId, ToolChoice, ToolError, ToolName, ToolSpec, Usage,
     };
     pub use crate::model::{
-        ModelCapabilities, ModelDelta, ModelProvider, ModelRequest, ModelStream, async_trait,
-        stream_from_deltas,
+        DeltaAssembler, ModelCapabilities, ModelDelta, ModelProvider, ModelRequest, ModelResponse,
+        ModelStream, async_trait, stream_from_deltas,
     };
     pub use crate::runtime::{
-        AgentRuntime, AgentRuntimeBuilder, BuildError, RunContext, RunHooks, RunInput, RunOutcome,
-        Session,
+        AgentEventStream, AgentRun, AgentRuntime, AgentRuntimeBuilder, BuildError, RunContext,
+        RunFuture, RunHooks, RunInput, RunOutcome, Session,
     };
-    pub use crate::tools::{RegistryError, Tool, ToolContext, ToolOutput};
+    pub use crate::tools::{RegistryError, SchemaViolation, Tool, ToolContext, ToolOutput};
 }

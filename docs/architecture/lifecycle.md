@@ -16,6 +16,7 @@ F  = { Completed, Failed, Cancelled }            （终止状态）
 ```
 
 实现：`mycelium_core::run::RunState::transition`（纯函数，无副作用；v0.1 已实现）。
+v0.2 起由 `mycelium-runtime` 的执行循环驱动，并在循环边界强制预算、取消与超时。
 
 - 合法转移返回目标状态；
 - 非法转移**必须显式拒绝**（`InvalidRunTransition`），禁止静默忽略或原地停留；
@@ -79,18 +80,21 @@ stateDiagram-v2
 全部非法组合由 `run::tests::terminal_states_absorb_all_events` 与
 `run::tests::transition_table_is_exhaustive` 覆盖；错误必须携带 `from` 与 `event` 上下文。
 
-## 5. 事件顺序不变量（Planned，v0.2 运行时契约）
+## 5. 事件顺序不变量（v0.2 已实现，测试映射见 FC-INV-020 ~ FC-INV-022）
 
-实现执行循环时，以下不变量升级为强制并要求测试映射（见 FC-Matrix §4）：
+由 v0.2 执行循环实现并测试：
 
 1. 单个 Run 内 `AgentEvent::seq` 从 0 开始连续单调递增，`run_id` 恒等于所属 Run；
 2. `RunStarted` 为首条事件；终态事件（`RunCompleted` / `RunFailed` / `RunCancelled`）恰好一条且为最后一条；
-3. `ToolCallStarted` 与 `ToolCallFinished` 以 `call_id` 一一配对，不存在裸 start / 裸 finish；
+3. `ToolCallStarted` 与 `ToolCallFinished` 以 `call_id` 一一配对（运行在工具阶段被取消时同样补齐 `Finished`，`is_error = true`）；
 4. `StepStarted { step }` 从 1 开始连续递增。
 
-## 6. 模型流装配契约（Planned，v0.2）
+事件由 `mycelium-runtime` 的引擎统一发射；事件是可选观测面（`run_events` 或 `RunHooks`），不影响运行结果。
 
-`ModelProvider` 返回的 `ModelStream` 必须满足（违反者归约为 `ModelError::InvalidResponse`）：
+## 6. 模型流装配契约（v0.2 已实现）
+
+实现：`mycelium-model::assembler::DeltaAssembler`。`ModelProvider` 返回的 `ModelStream` 必须满足
+（违反者归约为 `ModelError::InvalidResponse`，测试映射见 FC-ERR-010 ~ FC-ERR-015）：
 
 1. 成功流最后一项必须是 `ModelDelta::Finished`，且恰好一条；
 2. `Finished` 之后不得再产出任何项；
@@ -99,10 +103,14 @@ stateDiagram-v2
    其后仅携带 `arguments_json_delta`；
 5. 中途失败以 `Err(ModelError)` 结束，其后不得再产出项。
 
-## 7. 工具执行契约（Planned，v0.2 起逐步强制）
+装配结果（`ModelResponse`）：文本增量拼接为单个 `Text` 块（无文本且有工具调用时不产生文本块），
+工具调用按 `index` 升序转为 `ToolUse` 块，参数为空串时视为 `{}`。
 
-1. 执行前按 `input_schema` 校验入参，失败返回 `ToolError::InvalidArguments`（含工具名与字段路径）；
-2. 工具必须响应 `ToolContext::cancel`，返回 `ToolError::Cancelled`；
+## 7. 工具执行契约（v0.2 已实现 1 / 2 / 4 / 5；条目 3 见 roadmap v0.3）
+
+1. 执行前按 `input_schema` 校验入参（JSON Schema 子集，见 FC-Matrix §2.13），失败以错误结果回灌；
+2. 工具必须响应 `ToolContext::cancel`，返回 `ToolError::Cancelled` 时归约为 Run 级 `Cancelled`；
 3. 工具超时由运行时策略层统一施加（v0.3），超限归约为 `ToolError::Timeout`；
-4. 工具执行失败不终止 Run：错误以 `ToolOutput::error` 形式回灌给模型，由模型决定后续动作；
-5. 工具结果顺序在 v0.2（顺序执行）与调用顺序一致；v0.3 并发执行时通过 `call_id` 关联、按调用顺序回灌。
+4. 工具执行失败不终止 Run：错误以 `ToolOutput::error` 形式回灌给模型，由模型决定后续动作
+   （工具未注册 / 入参非法 / 执行失败均适用）；
+5. v0.2 为顺序执行，结果顺序与调用顺序一致；v0.3 并发执行时通过 `call_id` 关联、按调用顺序回灌。

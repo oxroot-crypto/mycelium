@@ -4,6 +4,8 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::message::Message;
+
 /// Token 用量。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Usage {
@@ -42,6 +44,17 @@ pub enum StopReason {
     StopSequence,
     /// 其他（提供方特有原因）。
     Other,
+}
+
+/// 一次模型调用的完整结果（由流式增量装配得到）。
+#[derive(Debug, Clone, PartialEq)]
+pub struct ModelResponse {
+    /// 助手消息（文本与工具调用）。
+    pub message: Message,
+    /// 停止原因。
+    pub stop_reason: StopReason,
+    /// 本次请求的用量（流未提供时为 0）。
+    pub usage: Usage,
 }
 
 #[cfg(test)]

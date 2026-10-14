@@ -13,19 +13,17 @@
 - [x] PBT（proptest）与证伪抽查
 - [x] CI（fmt / clippy / test）+ rust-toolchain + rustfmt 配置
 
-## v0.2 最小可运行循环（walking skeleton）
+## v0.2 最小可运行循环（walking skeleton）— 已完成（2026-10-14）
 
-目标：`AgentRuntime::run` 端到端可用（对 mock Provider 与实际 Provider 各跑通一次）。
-
-- [ ] `ModelDelta` 装配器（含 §6 流协议五项契约与负向测试）
-- [ ] 执行循环：请求模型 → 顺序执行工具 → 回灌 → 终止条件（无工具调用 / 预算耗尽）
-- [ ] 事件发射器（`seq` 连续、终态唯一，替换 `FC-POST-052` 哨兵测试）
-- [ ] 取消传播（`CancellationToken` → 在途请求与工具）与 `request_timeout`
-- [ ] 预算执行（步数 / 输出 Token）
-- [ ] `run_events`：以 `Stream<Item = AgentEvent>` 暴露过程事件
-- [ ] 首个官方 Provider 实现（OpenAI 兼容 / Anthropic 二选一）
-- [ ] 工具入参 schema 校验（`ToolError::InvalidArguments`）
-- [ ] tracing 埋点（run_id / step / 工具名）与集成测试（mock provider 脚本化响应）
+- [x] `ModelDelta` 装配器（含 §6 流协议五项契约与负向测试）
+- [x] 执行循环：请求模型 → 顺序执行工具 → 回灌 → 终止条件（无工具调用 / 预算耗尽）
+- [x] 事件发射器（`seq` 连续、终态唯一；`FC-POST-052` 哨兵已被真实循环取代）
+- [x] 取消传播（`CancellationToken` → 在途模型流与工具）与 `request_timeout`
+- [x] 预算执行（步数 / 输出 Token）
+- [x] `run_events`：以 `Stream<Item = AgentEvent>` 暴露过程事件
+- [x] 首个官方 Provider 实现：`mycelium-provider-openai`（OpenAI 兼容 Chat Completions）
+- [x] 工具入参 schema 校验（`ToolError::InvalidArguments`；JSON Schema 子集）
+- [x] tracing 埋点（事件级；run_id / step / 工具名）与脚本化 mock provider 集成测试
 
 ## v0.3 策略与生态
 

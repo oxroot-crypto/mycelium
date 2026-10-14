@@ -8,9 +8,11 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod registry;
+pub mod schema;
 pub mod tool;
 
 pub use registry::{RegistryError, ToolRegistry};
+pub use schema::{SchemaViolation, validate_arguments};
 pub use tool::{Tool, ToolContext, ToolOutput};
 
 pub use async_trait::async_trait;

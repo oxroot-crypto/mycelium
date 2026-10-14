@@ -6,12 +6,13 @@ members = [
     "crates/mycelium",
     "crates/mycelium-core",
     "crates/mycelium-model",
+    "crates/mycelium-provider-openai",
     "crates/mycelium-runtime",
     "crates/mycelium-tools",
 ]
 
 [workspace.package]
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 # MSRV：以已在 stable 1.97.1 完成验证的最低次版本声明，不得声称未验证的支持范围。
 rust-version = "1.97"
@@ -19,20 +20,25 @@ repository = "https://github.com/oxroot-crypto/mycelium"
 publish = false
 
 [workspace.dependencies]
-mycelium-core = { path = "crates/mycelium-core", version = "0.1.0" }
-mycelium-model = { path = "crates/mycelium-model", version = "0.1.0" }
-mycelium-runtime = { path = "crates/mycelium-runtime", version = "0.1.0" }
-mycelium-tools = { path = "crates/mycelium-tools", version = "0.1.0" }
+mycelium-core = { path = "crates/mycelium-core", version = "0.2.0" }
+mycelium-model = { path = "crates/mycelium-model", version = "0.2.0" }
+mycelium-provider-openai = { path = "crates/mycelium-provider-openai", version = "0.2.0" }
+mycelium-runtime = { path = "crates/mycelium-runtime", version = "0.2.0" }
+mycelium-tools = { path = "crates/mycelium-tools", version = "0.2.0" }
 
 async-trait = "0.1"
 futures-core = "0.3"
 futures-util = "0.3"
 proptest = "1"
+# 禁用默认 TLS 后端（aws-lc-rs 需要 cmake），改用 rustls + ring（仅需 C 编译器）。
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
 tokio = "1"
 tokio-util = "0.7"
+tracing = "0.1"
 uuid = { version = "1", features = ["v7", "serde"] }
 
 [workspace.lints.rust]

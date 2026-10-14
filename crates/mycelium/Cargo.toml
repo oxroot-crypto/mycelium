@@ -13,8 +13,13 @@ workspace = true
 [dependencies]
 mycelium-core.workspace = true
 mycelium-model.workspace = true
+mycelium-provider-openai = { workspace = true, optional = true }
 mycelium-runtime.workspace = true
 mycelium-tools.workspace = true
+
+[features]
+default = []
+provider-openai = ["dep:mycelium-provider-openai"]
 
 [dev-dependencies]
 serde_json.workspace = true

@@ -18,6 +18,8 @@ pub enum Role {
     User,
     /// 模型输出。
     Assistant,
+    /// 工具执行结果（`ToolResult` 专用角色）。
+    Tool,
 }
 
 /// 内容块。
@@ -86,6 +88,27 @@ impl Message {
     /// 构造只含一个文本块的模型消息。
     pub fn assistant_text(text: impl Into<String>) -> Self {
         Self::text(Role::Assistant, text)
+    }
+
+    /// 构造工具结果消息（`Role::Tool` + 单 `ToolResult` 块）。
+    ///
+    /// # Arguments
+    /// * `tool_call_id` - 对应的工具调用标识。
+    /// * `content` - 结果文本。
+    /// * `is_error` - 是否为错误结果。
+    pub fn tool_result(
+        tool_call_id: ToolCallId,
+        content: impl Into<String>,
+        is_error: bool,
+    ) -> Self {
+        Self {
+            role: Role::Tool,
+            content: vec![ContentBlock::ToolResult {
+                tool_call_id,
+                content: content.into(),
+                is_error,
+            }],
+        }
     }
 
     /// 构造只含一个文本块的消息（`text` 允许为空串）。
@@ -187,6 +210,40 @@ mod tests {
         assert_eq!(
             value,
             json!({ "role": "user", "content": [ { "type": "text", "text": "hi" } ] })
+        );
+    }
+
+    #[test]
+    fn tool_result_constructor_shape() {
+        let id = ToolCallId::new("call_1").unwrap();
+        let message = Message::tool_result(id.clone(), "boom", true);
+        assert_eq!(message.role(), Role::Tool);
+        assert_eq!(
+            message.content(),
+            &[ContentBlock::ToolResult {
+                tool_call_id: id,
+                content: "boom".to_owned(),
+                is_error: true,
+            }]
+        );
+    }
+
+    #[test]
+    fn tool_role_wire_format() {
+        let value = serde_json::to_value(Message::tool_result(
+            ToolCallId::new("c1").unwrap(),
+            "ok",
+            false,
+        ))
+        .unwrap();
+        assert_eq!(
+            value,
+            json!({
+                "role": "tool",
+                "content": [
+                    { "type": "tool_result", "tool_call_id": "c1", "content": "ok", "is_error": false }
+                ]
+            })
         );
     }
 }

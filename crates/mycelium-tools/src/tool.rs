@@ -12,7 +12,7 @@ use mycelium_core::tool::ToolSpec;
 pub struct ToolContext {
     /// 所属运行。
     pub run_id: RunId,
-    /// 所属会话（骨架阶段可能为 `None`；会话接入运行时后填充）。
+    /// 所属会话（当前运行时尚未绑定会话，为 `None`；v0.3 引入会话接入后填充）。
     pub session_id: Option<SessionId>,
     /// 本次调用的标识。
     pub call_id: ToolCallId,

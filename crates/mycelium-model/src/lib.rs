@@ -8,14 +8,16 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub mod assembler;
 pub mod delta;
 pub mod provider;
 pub mod request;
 
+pub use assembler::DeltaAssembler;
 pub use delta::ModelDelta;
 pub use provider::{ModelCapabilities, ModelProvider, ModelStream, stream_from_deltas};
 pub use request::ModelRequest;
 
 pub use async_trait::async_trait;
 pub use mycelium_core::error::ModelError;
-pub use mycelium_core::response::{StopReason, Usage};
+pub use mycelium_core::response::{ModelResponse, StopReason, Usage};

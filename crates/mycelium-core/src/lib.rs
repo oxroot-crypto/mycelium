@@ -5,7 +5,7 @@
 //! - 标识符：[`SessionId`]、[`RunId`]、[`ToolName`]、[`ToolCallId`]、[`ModelId`]
 //! - 消息模型：[`Message`]、[`ContentBlock`]、[`Role`]
 //! - 工具协议：[`ToolSpec`]、[`ToolCall`]、[`ToolChoice`]
-//! - 响应词汇：[`StopReason`]、[`Usage`]
+//! - 响应词汇：[`ModelResponse`]、[`StopReason`]、[`Usage`]
 //! - 运行状态机：[`RunState`]、[`RunEvent`]、[`InvalidRunTransition`]
 //! - 事件模型：[`AgentEvent`]、[`AgentEventKind`]
 //! - 错误分类矩阵：[`AgentError`]、[`ModelError`]、[`ToolError`]、[`ConfigError`]
@@ -45,7 +45,7 @@ pub use error::{
 pub use event::{AgentEvent, AgentEventKind};
 pub use ids::{ModelId, RunId, SessionId, ToolCallId, ToolName};
 pub use message::{ContentBlock, Message, Role};
-pub use response::{StopReason, Usage};
+pub use response::{ModelResponse, StopReason, Usage};
 pub use run::{InvalidRunTransition, RunEvent, RunState};
 pub use tool::{ToolCall, ToolChoice, ToolSpec};
 

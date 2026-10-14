@@ -23,7 +23,7 @@ pub enum RegistryError {
 /// 工具注册表。
 ///
 /// 不变量：内部按名称唯一索引；[`ToolRegistry::specs`] 按名称字典序返回（确定性输出）。
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct ToolRegistry {
     tools: BTreeMap<ToolName, Arc<dyn Tool>>,
 }

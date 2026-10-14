@@ -16,7 +16,8 @@ async-trait.workspace = true
 futures-core.workspace = true
 futures-util.workspace = true
 serde.workspace = true
+serde_json.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
+proptest.workspace = true
 tokio = { workspace = true, features = ["macros", "rt"] }

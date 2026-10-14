@@ -14,7 +14,11 @@ workspace = true
 mycelium-core.workspace = true
 mycelium-model.workspace = true
 mycelium-tools.workspace = true
+futures-core.workspace = true
+futures-util.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
+tracing.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

@@ -82,21 +82,22 @@ flowchart TB
 | **AgentEvent** | 运行过程事件（观测与传输的统一格式） |
 | **RunHooks** | 同步观察者扩展点（运行 / 步 / 工具粒度） |
 
-## 6. 运行模型（目标形态，v0.2 起逐步实现）
+## 6. 运行模型（v0.2 已实现主体；并发与工具超时为 v0.3）
 
 - 单次 Run 执行在独立 tokio 任务中，`run_id` 贯穿所有事件与日志；
-- 主循环：请求模型（流式）→ 装配工具调用 → 执行工具 → 结果回灌 → 直至无工具调用或到达预算上限；
+- 主循环：请求模型（流式装配）→ 顺序执行工具 → 结果回灌 → 直至无工具调用或到达预算上限；
 - 工具执行 v0.2 为顺序执行（结果顺序与调用顺序一致），v0.3 引入可配置并发；
-- 取消：`RunInput.cancel` 触发后传播到在途模型请求与工具，Run 进入 `Cancelled`；
+- 取消：`RunInput.cancel` 触发后传播到在途模型流与工具执行，Run 进入 `Cancelled`；
 - 超时：模型请求超时由 `AgentConfig::request_timeout` 控制；工具超时由策略层在 v0.3 引入；
-- 预算：步数 / 输出 Token / 时长三类预算，超限返回 `AgentError::BudgetExceeded` 并停止发起新请求；
-- 事件：Run 内 `seq` 从 0 连续递增；终态事件唯一（Planned 契约）。
+- 预算：步数 / 输出 Token 已实现（时长预算见 roadmap）；
+- 事件：Run 内 `seq` 从 0 连续递增；终态事件唯一（见 `lifecycle.md` §5，已测试）；
+- 事件为可选观测面：`run_events` 返回流式事件；`RunHooks` 提供同步回调。
 
 ## 7. 扩展点（SPI）
 
 | 扩展点 | 位置 | 用途 | 后续演进 |
 | :--- | :--- | :--- | :--- |
-| `ModelProvider` | `mycelium-model` | 接入任意模型服务（HTTP / 本地推理） | v0.2 提供首个官方实现；v0.4 多 Provider 路由 |
+| `ModelProvider` | `mycelium-model` | 接入任意模型服务（HTTP / 本地推理） | v0.2 已提供 `mycelium-provider-openai`；v0.4 多 Provider 路由 |
 | `Tool` | `mycelium-tools` | 接入任意工具（函数、HTTP、MCP） | v0.3 提供 derive 宏与 MCP 适配 |
 | `RunHooks` | `mycelium-runtime` | 观测与拦截（日志、指标、审批） | v0.3 升级为异步钩子 + 权限策略层 |
 
@@ -115,19 +116,22 @@ flowchart TB
 | `ModelError::InvalidResponse` | 提供方违反流协议 | 否 | 违约细节 |
 | `ToolError::*` | 工具层错误（未注册 / 入参 / 拒绝 / 执行 / 超时 / 取消） | 否（回灌模型） | 工具名与原因 |
 | `AgentError::BudgetExceeded` | 预算超限 | 否 | 类别 / 上限 / 实测 |
-| `AgentError::Unimplemented` | 功能未实现（骨架阶段显式失败） | 否 | 功能名 |
+| `AgentError::Unimplemented` | 功能未实现（显式失败，绝不静默成功） | 否 | 功能名 |
 
 ## 9. 依赖清单与理由
 
 | 依赖 | 使用范围 | 理由 |
 | :--- | :--- | :--- |
-| `serde` / `serde_json` | core / model / tools | wire 格式与 JSON Schema 的生态标准，无可行替代 |
-| `thiserror` | core / tools / runtime | 错误枚举样板，编译期展开、零运行时开销 |
+| `serde` / `serde_json` | core / model / tools / provider | wire 格式与 JSON Schema 的生态标准，无可行替代 |
+| `thiserror` | core / tools / runtime / provider | 错误枚举样板，编译期展开、零运行时开销 |
 | `async-trait` | model / tools | stable 上对象安全异步 trait 的标准做法（`Arc<dyn Tool>` 要求 dyn 兼容） |
 | `uuid`（v7） | core | 时间有序 ID，便于持久化与排序 |
-| `tokio` / `tokio-util` | runtime（及测试） | 栈基线决策；`CancellationToken` 作为统一取消原语 |
-| `futures-core` / `futures-util` | model | `Stream` 抽象（core）与流构造工具（util，仅用于 `stream_from_deltas` 与测试） |
-| `proptest`（dev） | core | FSVDD 强制要求的基于属性测试 |
+| `tokio` / `tokio-util` | runtime / provider（及测试） | 栈基线决策；`CancellationToken` 作为统一取消原语 |
+| `futures-core` / `futures-util` | model / runtime | `Stream` 抽象与流构造工具 |
+| `reqwest`（rustls-no-provider） | provider-openai | HTTP 客户端；不启用默认 TLS 后端，改用 ring（见下行） |
+| `rustls`（ring 后端） | provider-openai | TLS 实现；ring 后端仅需 C 编译器、无需 cmake（aws-lc-rs 需要 cmake，刻意规避） |
+| `tracing` | runtime | 结构化日志埋点（事件级，v0.3 升级 span） |
+| `proptest`（dev） | core、model | FSVDD 强制要求的基于属性测试 |
 
 依赖纪律：禁止 `*` 版本范围；新增依赖必须在本表登记理由并说明是否可零依赖实现。
 
@@ -144,8 +148,11 @@ flowchart TB
 v0.1 已完成：分层结构、领域类型、三个 SPI 契约、错误分类矩阵、状态机（全路径测试）、
 FC-Matrix 与测试一一对应、CI 基线。
 
-尚未实现（roadmap）：执行循环、模型流装配、首个 Provider 实现、事件流输出、工具 schema 校验、
-权限策略、记忆与持久化、MCP 适配。
+v0.2 已完成：执行循环（顺序工具、预算、取消、超时）、流式增量装配器、工具入参 JSON Schema
+子集校验、事件发射与 `run_events` 流式 API、OpenAI 兼容 Provider（含本地 stub server 端到端测试）。
+
+尚未实现（见 roadmap）：工具并发、权限策略、时长预算、工具超时、重试策略、记忆与持久化、
+MCP 适配、完整 JSON Schema、tracing span。
 
 - 生命周期与状态机：`docs/architecture/lifecycle.md`
 - 形式化约束矩阵：`docs/spec/core.md`

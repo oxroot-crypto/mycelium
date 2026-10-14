@@ -40,7 +40,7 @@ pub enum AgentError {
         /// 缺失的会话标识。
         session_id: SessionId,
     },
-    /// 功能尚未实现（骨架阶段显式失败，绝不静默成功）。
+    /// 功能尚未实现（显式失败，绝不静默成功）。
     #[error("功能尚未实现：{feature}（当前版本为 v0.1 架构骨架）")]
     Unimplemented {
         /// 功能标识（例如 `"AgentRuntime::run"`）。

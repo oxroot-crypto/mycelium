@@ -1,6 +1,4 @@
-//! 端到端接线示例：构建一个最小 Agent。
-//!
-//! 骨架阶段 `run` 会显式返回 `AgentError::Unimplemented`（预期行为，绝不静默成功）。
+//! 端到端接线示例：构建一个最小 Agent 并执行一次运行。
 //!
 //! 运行方式：`cargo run -p mycelium --example basic`
 // 示例代码可放宽 unwrap / expect 限制（规范允许：测试与示例代码）。
@@ -80,10 +78,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         agent.tools().len()
     );
 
-    match agent.run(RunInput::from_user_text("ping")).await {
-        Ok(outcome) => println!("运行完成：{outcome:?}"),
-        Err(error) => println!("运行未完成（骨架阶段预期行为）：{error}"),
-    }
+    let outcome = agent.run(RunInput::from_user_text("ping")).await?;
+    println!(
+        "运行完成：steps={}，usage={:?}，消息数={}",
+        outcome.steps,
+        outcome.usage,
+        outcome.messages.len()
+    );
 
     Ok(())
 }

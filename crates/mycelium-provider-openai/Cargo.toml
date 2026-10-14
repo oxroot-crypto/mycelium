@@ -1,0 +1,26 @@
+[package]
+name = "mycelium-provider-openai"
+description = "mycelium 的 OpenAI 兼容 Provider 实现（Chat Completions，流式 SSE）"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+mycelium-core.workspace = true
+mycelium-model.workspace = true
+futures-util.workspace = true
+reqwest.workspace = true
+rustls.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+mycelium-runtime.workspace = true
+mycelium-tools.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }

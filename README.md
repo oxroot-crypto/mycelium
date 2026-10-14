@@ -3,28 +3,29 @@
 面向 Rust 的 agent SDK：**分层通用核心**。内核不假设产品形态，同一套抽象既可嵌入应用
 （框架形态），也可演进为本地 Agent 运行时（服务形态）。
 
-> **状态：v0.1 架构骨架。** 领域类型、SPI 契约、错误体系、运行状态机与形式化契约文档
-> 已就绪并有测试覆盖；执行循环与具体模型 Provider **尚未实现** ——
-> `AgentRuntime::run` 当前会显式返回 `AgentError::Unimplemented`（绝不静默成功）。
-> 计划见 [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md)。
+> **状态：v0.2 最小可运行循环（walking skeleton）。** 执行循环、流式装配、预算/取消/超时、
+> 事件流与 OpenAI 兼容 Provider 均已可用；工具并发、权限策略、记忆等见
+> [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md)。
 
 ## 架构
 
 ```text
 mycelium（门面：re-export + prelude）
-   └── mycelium-runtime（AgentRuntime / Session / RunHooks）
-          ├── mycelium-model（ModelProvider SPI：请求 / 流式增量 / 能力）
-          └── mycelium-tools（Tool SPI：注册表 / 执行上下文）
-                 └── mycelium-core（消息 / 工具协议 / 事件 / 状态机 / 错误 / 配置）
+   ├── mycelium-runtime（执行循环 / 事件流 / Session / RunHooks）
+   │      ├── mycelium-model（ModelProvider SPI / 流式增量装配器）
+   │      └── mycelium-tools（Tool SPI / 注册表 / 入参校验）
+   ├── mycelium-provider-openai（OpenAI 兼容 Provider 实现）
+   └── mycelium-core（消息 / 工具协议 / 事件 / 状态机 / 错误 / 配置）
 ```
 
 | crate | 职责 |
 | :--- | :--- |
 | `mycelium-core` | 领域内核：标识、消息、工具协议、事件、运行状态机、错误分类矩阵、配置 |
-| `mycelium-model` | 模型提供方抽象（SPI）：`ModelProvider` / `ModelRequest` / `ModelDelta` |
-| `mycelium-tools` | 工具抽象（SPI）与注册表：`Tool` / `ToolRegistry` |
-| `mycelium-runtime` | 执行引擎与装配：`AgentRuntime` / `Session` / `RunHooks` |
-| `mycelium` | 门面：统一 re-export 与 `prelude` |
+| `mycelium-model` | 模型提供方抽象（SPI）：`ModelProvider` / `ModelRequest` / `ModelDelta` / 流式装配器 |
+| `mycelium-tools` | 工具抽象（SPI）、注册表与入参校验（JSON Schema 子集） |
+| `mycelium-runtime` | 执行引擎：`AgentRuntime` / `AgentRun` / `Session` / `RunHooks` |
+| `mycelium-provider-openai` | OpenAI 兼容 Provider（Chat Completions，流式 SSE） |
+| `mycelium` | 门面：统一 re-export 与 `prelude`（可选 feature：`provider-openai`） |
 
 ## 快速开始
 
@@ -93,13 +94,28 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .tool(Arc::new(EchoTool))
         .build()?;
 
-    // v0.1 骨架：执行循环尚未实现；run 返回显式 Unimplemented（绝不静默成功）。
-    let result = agent.run(RunInput::from_user_text("ping")).await;
-    assert!(matches!(result, Err(AgentError::Unimplemented { .. })));
+    // v0.2：执行循环真实可用 —— 模型回显 "pong"，一次请求即完成。
+    let outcome = agent.run(RunInput::from_user_text("ping")).await?;
+    assert_eq!(outcome.steps, 1);
+    assert_eq!(outcome.messages.len(), 1);
 
     Ok(())
 }
 ```
+
+## 接入真实模型（OpenAI 兼容）
+
+```bash
+cargo add mycelium-provider-openai   # 或使用门面 feature：mycelium = { features = ["provider-openai"] }
+```
+
+```bash
+export OPENAI_API_KEY=sk-...          # 必填
+export OPENAI_BASE_URL=http://localhost:11434/v1   # 可选：兼容 Ollama / vLLM 等网关
+```
+
+`OpenAiProvider::from_env()` 读取上述环境变量；用法示例见
+[`crates/mycelium-provider-openai/src/lib.rs`](crates/mycelium-provider-openai/src/lib.rs) 的 rustdoc。
 
 ## 文档
 
