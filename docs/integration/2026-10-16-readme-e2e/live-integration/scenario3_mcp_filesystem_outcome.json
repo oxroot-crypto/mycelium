@@ -1,0 +1,56 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "The user wants me to read a file. Let me first check allowed directories, but I can just try reading directly.",
+          "type": "thinking"
+        },
+        {
+          "id": "call_00_hSkxLy52ez28kKAOWGdQ1401",
+          "input": {
+            "path": "/tmp/mycelium-mcp-demo/hello.txt"
+          },
+          "name": "read_text_file",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "mycelium × MCP：你好，世界！\n",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_call_id": "call_00_hSkxLy52ez28kKAOWGdQ1401",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "text": "The file contains \"mycelium × MCP：你好，世界！\". Let me report it exactly.",
+          "type": "thinking"
+        },
+        {
+          "text": "文件 `/tmp/mycelium-mcp-demo/hello.txt` 的内容原样如下：\n\n```\nmycelium × MCP：你好，世界！\n```\n\n也就是说，文件里写的是这一行文字：**mycelium × MCP：你好，世界！**",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 2,
+  "usage": {
+    "input_tokens": 4659,
+    "output_tokens": 153,
+    "reasoning_tokens": 46
+  }
+}

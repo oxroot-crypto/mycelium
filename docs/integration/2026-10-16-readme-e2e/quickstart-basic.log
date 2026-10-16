@@ -1,0 +1,2 @@
+装配完成：provider=echo，tools=1
+运行完成：steps=1，usage=Usage { input_tokens: 0, output_tokens: 0, reasoning_tokens: 0 }，消息数=1

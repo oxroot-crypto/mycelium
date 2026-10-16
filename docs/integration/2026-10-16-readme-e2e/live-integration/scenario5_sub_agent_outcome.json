@@ -1,0 +1,56 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "We need answer user asks in Chinese. Need call ask_child tool with prompt. Then relay. Need comply. Let's call.",
+          "type": "thinking"
+        },
+        {
+          "id": "call_00_zkf2yrHmIHlHAFuqWhyg2739",
+          "input": {
+            "prompt": "1+1 等于几？只回复数字"
+          },
+          "name": "ask_child",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "2",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_call_id": "call_00_zkf2yrHmIHlHAFuqWhyg2739",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "text": "Need relay. Child answered 2. Final concise.",
+          "type": "thinking"
+        },
+        {
+          "text": "子 Agent 的回答是：2",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 2,
+  "usage": {
+    "input_tokens": 759,
+    "output_tokens": 93,
+    "reasoning_tokens": 37
+  }
+}

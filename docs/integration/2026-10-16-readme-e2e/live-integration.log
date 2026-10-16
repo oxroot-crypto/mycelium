@@ -1,0 +1,22 @@
+输出目录：/tmp/opencode/e2e-verify/logs/live-integration
+网关：https://api.deepseek.com/v1，模型：deepseek-flash
+── 场景 scenario1_text_thinking ──
+   steps=1 usage=Usage { input_tokens: 51, output_tokens: 322, reasoning_tokens: 303 } 事件 326 条
+── 场景 scenario2_tool_round_trip ──
+   steps=2 usage=Usage { input_tokens: 764, output_tokens: 84, reasoning_tokens: 22 } 事件 41 条
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /tmp/mycelium-mcp-demo
+Secure MCP Filesystem Server running on stdio
+MCP 服务：secure-filesystem-server v1.0.0（协议 2025-06-18），工具 14 个
+── 场景 scenario3_mcp_filesystem ──
+   steps=2 usage=Usage { input_tokens: 4659, output_tokens: 153, reasoning_tokens: 46 } 事件 113 条
+== 场景 4：多轮会话（Session 持久化）==
+== 场景 5：子 Agent 编排（agent-as-tool）==
+── 场景 scenario5_sub_agent ──
+   steps=2 usage=Usage { input_tokens: 759, output_tokens: 93, reasoning_tokens: 37 } 事件 55 条
+== 场景 6：MCP 资源与提示模板 ==
+npm notice run npx
+npm notice run 'mcp-server-everything'
+Starting default (STDIO) server...
+   资源 7 个（demo://resource/static/document/architecture.md → 1 内容块）；提示模板 4 个（simple-prompt → 1 条消息）
+✅ 全部场景通过，日志已写入 /tmp/opencode/e2e-verify/logs/live-integration

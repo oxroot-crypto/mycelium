@@ -1,0 +1,18 @@
+沙箱目录：/tmp/mycelium-mcp-demo
+npm notice run npx
+npm notice run 'mcp-server-filesystem' /tmp/mycelium-mcp-demo
+Secure MCP Filesystem Server running on stdio
+MCP 服务：secure-filesystem-server v1.0.0（协议 2025-06-18）
+MCP 工具 14 个：read_file, read_text_file, read_media_file, read_multiple_files, write_file, edit_file, create_directory, list_directory, list_directory_with_sizes, directory_tree, move_file, search_files, get_file_info, list_allowed_directories
+steps=2 usage=Usage { input_tokens: 4654, output_tokens: 140, reasoning_tokens: 40 }
+  → 模型思考（已记录，不回传）
+  → 调用工具：read_text_file
+  → 模型思考（已记录，不回传）
+回复：文件 `/tmp/mycelium-mcp-demo/hello.txt` 的内容原样如下：
+
+```
+mycelium × MCP：你好，世界！
+```
+
+（即一行文本，以感叹号结尾，末尾带换行符。）
+✅ DeepSeek × MCP 全栈验证通过

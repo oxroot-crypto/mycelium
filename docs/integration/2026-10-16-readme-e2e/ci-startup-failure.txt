@@ -1,0 +1,12 @@
+GitHub Actions startup failure 证据（2026-10-16 抓取）
+
+- 仓库：https://github.com/oxroot-crypto/mycelium
+- 运行记录：CI workflow 全部 11 次运行均为 failure，单次耗时 3–8 秒；
+  三个 job（fmt/clippy/test、MSRV、deny）steps 均为空（0 个步骤执行）。
+- 运行页注解原文：
+  "The job was not started because your account is locked due to a billing issue."
+- 参考运行：https://github.com/oxroot-crypto/mycelium/actions/runs/38871624767
+- 结论：属账号/组织（oxroot-crypto）级 GitHub Actions 计费锁定，与仓库代码和
+  工作流配置无关；本地同一套命令全部通过（见同目录 report.md）。
+- 修复建议：在 GitHub「Billing & plans」处理计费问题后，重新触发 CI 即可真实验证
+  三个 job；`Mutants` 工作流为周定时，尚未产生运行记录。

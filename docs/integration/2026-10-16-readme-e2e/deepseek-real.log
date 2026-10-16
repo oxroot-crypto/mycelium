@@ -1,0 +1,16 @@
+网关：https://api.deepseek.com/v1，模型：deepseek-flash
+== 场景 1：纯文本对话 ==
+steps=1 usage=Usage { input_tokens: 325, output_tokens: 275, reasoning_tokens: 250 }
+思考：我们需要回答用户中文请求。用户要求：“用一句话介绍你自己，并说明你是什么模型。” 需要一句话介绍自己并说明是什么模型。系统说你是简洁助手，回答尽量不超过两句话。需要遵守。必须诚实说明模型。我是 DeepSeek 吗？实际上模型是 AI 助手，具体模型？ 系统没给模型名。通常应说我是由深度求索公司创造的 DeepSeek 模型？ 但当前环境未明确。作为 AI，我应知道我是 DeepSeek 吗？ 在这个平台，系统提示简洁助手，没有模型身份。但按照常见，我是 DeepSeek 最新版模型。需要准确。如果不知道确切版本，可以说我是 DeepSeek 推出的 AI 助手，具体版本以官方为准。用户要求一句话。可以：“我是一个简洁的 AI 助手，由深度求索公司开发，属于 DeepSeek 模型。” 但若实际是其他模型会不准确。通常DeepSeek官方模型回答是“我是DeepSeek最新版模型”。应该用一句话。系统要求回答尽量不超过两句话。可以一句话。没有工具调用必要。需要中文。最终只输出一句话。确保包含介绍和模型。
+reasoning_tokens=250
+回复：我是由深度求索公司开发的 DeepSeek 模型，一个回答简洁、乐于助人的 AI 助手。
+== 场景 2：工具调用往返（add）==
+steps=2 usage=Usage { input_tokens: 747, output_tokens: 83, reasoning_tokens: 21 }
+  [0] Assistant: thinking, tool_use
+  [1] Tool: tool_result
+  [2] Assistant: text
+最终回复：21 + 21 = 42。
+✅ 工具调用往返验证通过
+== 场景 3：事件流（run_events）==
+事件总数=54，文本增量=5，思考增量=44，steps=1
+✅ 流式事件验证通过
