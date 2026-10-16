@@ -9,15 +9,16 @@
 | v0.1.0 | 2026-10-14 | `454cfa6`（`v0.1.0`） | 架构骨架：分层、领域类型、SPI 契约、状态机、FC-Matrix | ✅ 已发布 |
 | v0.2.0 | 2026-10-14 | `1c61666`（`v0.2.0`） | 最小可运行循环：执行引擎、流式装配器、事件流、OpenAI 兼容 Provider | ✅ 已发布 |
 | v0.3.0 | 2026-10-16 | `d65cc83`（`v0.3.0`） | 策略与生态：并发工具、权限策略、`#[tool]` 宏、MCP、思考过程 | ✅ 已发布 |
-| v0.4.0 | 2026-10-16 | `e28205b`（`v0.4.0`） | 结构化工具结果、异步钩子、重试与降级、时长预算、MSRV CI | ✅ 已发布（第一批） |
-| v0.4.x | — | — | 会话持久化、子 Agent 编排、长期记忆、MCP 资源/HTTP | ⏳ 规划中 |
+| v0.4.0 | 2026-10-16 | `e28205b`（`v0.4.0`） | 结构化工具结果、异步钩子、重试与降级、时长预算、MSRV CI | ✅ 已发布 |
+| v0.5.0 | 2026-10-16 | `PLACEHOLDER`（`v0.5.0`） | 多轮会话持久化（`SessionStore` + `run_session`）、子 Agent 编排（`AgentTool`） | ✅ 已发布 |
+| v0.5.x | — | — | 长期记忆、MCP 资源/HTTP、完整 JSON Schema、tracing span | ⏳ 规划中 |
 | v1.0.0 | — | — | API 冻结、文档与发布流程 | ⏳ 规划中 |
 
 工程数据（截至 v0.4.0）：
 
-- FC 约束 **131 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16）；
-- **183 项测试**（175 单元 / 集成 + 8 doctest）全绿；clippy / fmt / doc 零告警；
-- 真实联调原始日志：`docs/integration/`（v0.3 与 v0.4 两次完整记录，DeepSeek V4.1-Flash × MCP）；
+- FC 约束 **141 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10）；
+- **198 项测试**（188 单元 / 集成 + 10 doctest）全绿；clippy / fmt / doc 零告警；
+- 真实联调原始日志：`docs/integration/`（v0.3 / v0.4 / v0.5 三次完整记录，DeepSeek V4.1-Flash × MCP）；
 - 契约与变更记录：`docs/spec/core.md`（RFC：`docs/architecture/rfc/`）。
 
 ---
@@ -69,12 +70,21 @@
 - [x] MSRV CI job（1.97.0 `cargo check --workspace --all-features`）
 - [x] 联调重跑（wire 变更后，日志 `docs/integration/2026-10-16-v0.4/`）
 
-### v0.4.x — 规划中（建议优先级从高到低）
+### v0.4.x — 规划中（已被 v0.5 取代）
 
-- [ ] `Session` 持久化 trait（存储后端可插拔）与恢复 —— 把单次 Run 升级为多轮会话
-- [ ] 子 Agent / 任务编排（工具化的 agent-as-tool）—— 支持多 Agent 协作
+> 会话持久化与子 Agent 编排已随 v0.5.0 交付（见下）；其余条目顺延至 v0.5.x。
+
+## v0.5 多轮会话与多 Agent — v0.5.0 已完成（2026-10-16）
+
+- [x] `Session` 持久化 SPI：`SessionStore` trait + `InMemorySessionStore` / `FileSessionStore`（原子写、损坏显式失败）
+- [x] `AgentRuntime::run_session`：历史作为输入、新消息追加回会话；失败 / 取消不修改会话
+- [x] 子 Agent 编排（`AgentTool`）：agent-as-tool，取消传播、子运行独立预算与事件流、错误回灌
+- [x] 真实联调场景 4/5（会话持久化恢复 / 子 Agent；日志 `docs/integration/2026-10-16-v0.5/`）
+
+### v0.5.x — 规划中（建议优先级从高到低）
+
 - [ ] MCP 资源 / 提示模板 / HTTP 传输（从 v0.3 顺延）
-- [ ] 长期记忆接口（向量检索等由生态实现）
+- [ ] 长期记忆接口（向量检索等由生态实现），与 `Session` 持久化协同
 - [ ] 完整 JSON Schema 支持（超出 §2.13 子集的关键字）
 - [ ] tracing 结构化 span（当前为事件级埋点 + 原始交互日志）
 

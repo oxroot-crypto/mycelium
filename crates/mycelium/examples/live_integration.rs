@@ -5,7 +5,11 @@
 //!   运行时生命周期）；
 //! - `scenario*_events.jsonl`：`AgentEvent` 全量事件流（一行一个 JSON，`seq` 连续）；
 //! - `scenario*_outcome.json`：最终消息（含 `thinking` 块）、用量与步数；
+//! - `sessions/`：场景 4 的会话持久化文件（FileSessionStore）；
 //! - `report.md`：环境、场景与断言结果汇总。
+//!
+//! 场景：① 文本 + 思考链；② `#[tool]` 工具往返；③ MCP 文件系统；④ 多轮会话（持久化 + 恢复）；
+//! ⑤ 子 Agent 编排（agent-as-tool）。
 //!
 //! 隐私说明：`Authorization` 请求头**不进入日志**（仅请求体与响应行落盘）。
 //!
@@ -108,6 +112,21 @@ async fn run_scenario(
     events_file.flush()?;
 
     let outcome = result.await_result().await?;
+    write_outcome_snapshot(output_dir, name, &outcome)?;
+
+    println!(
+        "   steps={} usage={:?} 事件 {} 条",
+        outcome.steps, outcome.usage, event_count
+    );
+    Ok((outcome, event_count))
+}
+
+/// 写出运行结果快照（场景 4 的会话场景复用）。
+fn write_outcome_snapshot(
+    output_dir: &Path,
+    name: &str,
+    outcome: &RunOutcome,
+) -> Result<(), Box<dyn std::error::Error>> {
     let snapshot = serde_json::json!({
         "steps": outcome.steps,
         "usage": outcome.usage,
@@ -117,12 +136,45 @@ async fn run_scenario(
         output_dir.join(format!("{name}_outcome.json")),
         serde_json::to_string_pretty(&snapshot)?,
     )?;
+    Ok(())
+}
 
-    println!(
-        "   steps={} usage={:?} 事件 {} 条",
-        outcome.steps, outcome.usage, event_count
-    );
-    Ok((outcome, event_count))
+/// 提取助手消息中的文本。
+fn assistant_text(outcome: &RunOutcome) -> String {
+    assistant_block_text(outcome, |block| match block {
+        ContentBlock::Text { text } => Some(text.as_str()),
+        _ => None,
+    })
+}
+
+/// 提取工具结果中的文本块（换行连接）。
+fn tool_result_texts(outcome: &RunOutcome) -> Vec<String> {
+    outcome
+        .messages
+        .iter()
+        .flat_map(|message| message.content())
+        .filter_map(|block| match block {
+            ContentBlock::ToolResult { content, .. } => Some(
+                content
+                    .iter()
+                    .filter_map(|tool_block| match tool_block {
+                        ToolResultBlock::Text { text } => Some(text.as_str()),
+                        ToolResultBlock::Image { .. } => None,
+                    })
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            ),
+            _ => None,
+        })
+        .collect()
+}
+
+/// 当前 Unix 时间戳（毫秒）。
+fn now_ms() -> u64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
+        .unwrap_or(0)
 }
 
 /// 提取最后一条助手消息中指定类型块的文本。
@@ -309,7 +361,84 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     ));
     client.shutdown().await?;
 
-    // 6) 汇总报告
+    // 6) 场景 4：多轮会话（持久化 + 恢复，run_session）
+    println!("== 场景 4：多轮会话（Session 持久化）==");
+    let runtime = build_agent(Arc::clone(&provider), vec![])?;
+    let session_dir = output_dir.join("sessions");
+    let store = FileSessionStore::new(&session_dir);
+    let mut session = Session::new(now_ms());
+
+    let outcome = runtime
+        .run_session(
+            &mut session,
+            RunInput::from_user_text("请记住一个数字：7。回答「记住了」即可。"),
+        )
+        .await?;
+    write_outcome_snapshot(&output_dir, "scenario4_session_turn1", &outcome)?;
+    store.save(&session).await?;
+
+    // 恢复：用新的 store 实例读回会话（持久化往返）
+    let restored = FileSessionStore::new(&session_dir)
+        .load(&session.id())
+        .await?
+        .expect("会话应可恢复");
+    assert_eq!(
+        restored.messages().len(),
+        session.messages().len(),
+        "恢复后的会话消息数应一致"
+    );
+    let mut session = restored;
+
+    let outcome = runtime
+        .run_session(
+            &mut session,
+            RunInput::from_user_text("我刚才让你记住的数字是多少？只回答数字。"),
+        )
+        .await?;
+    write_outcome_snapshot(&output_dir, "scenario4_session_turn2", &outcome)?;
+    store.save(&session).await?;
+
+    let text = assistant_text(&outcome);
+    assert!(text.contains('7'), "第二轮应基于历史回答 7：{text}");
+    report_items.push(format!(
+        "| 4 | 多轮会话（持久化 + 恢复） | 两轮完成，会话消息 {} 条；第二轮回复：{} |",
+        session.len(),
+        text.replace('\n', " ")
+    ));
+
+    // 7) 场景 5：子 Agent 编排（agent-as-tool）
+    println!("== 场景 5：子 Agent 编排（agent-as-tool）==");
+    let child_runtime = build_agent(Arc::clone(&provider), vec![])?;
+    let child_tool = Arc::new(AgentTool::new(
+        ToolName::new("ask_child").expect("合法工具名"),
+        "向子 Agent 提问（单轮，返回其最终回答）",
+        Arc::new(child_runtime),
+    ));
+    let parent_runtime = build_agent(Arc::clone(&provider), vec![child_tool])?;
+    let (outcome, events) = run_scenario(
+        "scenario5_sub_agent",
+        &parent_runtime,
+        "请调用 ask_child 工具，让它回答「1+1 等于几？只回复数字」，然后把它的回答转述给我。",
+        &output_dir,
+    )
+    .await?;
+    let tool_texts = tool_result_texts(&outcome);
+    assert!(
+        tool_texts.iter().any(|text| text.contains('2')),
+        "子 Agent 的结果应包含 2：{tool_texts:?}"
+    );
+    assert!(
+        assistant_text(&outcome).contains('2'),
+        "父 Agent 的最终回复应包含 2"
+    );
+    report_items.push(format!(
+        "| 5 | 子 Agent 编排（agent-as-tool） | steps={}，事件={}，子 Agent 结果：{} |",
+        outcome.steps,
+        events,
+        tool_texts.join(" / ").replace('\n', " ")
+    ));
+
+    // 8) 汇总报告
     let generated_at_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))

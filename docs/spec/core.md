@@ -3,7 +3,7 @@
 > 本文件是 mycelium 形式化契约的**单一真实来源（Single Source of Truth）**。
 > 任何行为变更必须遵循：**先改本契约 → 再改测试 → 再改实现 → 契约漂移审计**（见 §5）。
 >
-> - 版本：v0.4.0（2026-10-16）
+> - 版本：v0.5.0（2026-10-16）
 > - 覆盖范围：`mycelium-core`、`mycelium-model`、`mycelium-tools`、`mycelium-runtime`、`mycelium-macros`、`mycelium-mcp`、`mycelium-provider-openai`、`mycelium`（门面）
 > - 状态列取值：`Pending`（待验证）/ `Passed`（验证通过）/ `Planned`（未实现，不计入本次覆盖率）
 
@@ -12,8 +12,8 @@
 - 本仓库交付物为**对外契约类 SDK**（公共 API 即契约）。依据 FSVDD §1.1，将以下推荐项升级为**强制**：
   测试与约束 1:1 对齐（100% 追溯）、状态机全路径遍历、基于属性的测试（PBT）、证伪抽查。
 - 不适用豁免（FSVDD §1.2）：本仓库承载对外接口与状态流转。
-- v0.4 覆盖：结构化工具结果（RFC-0002）、重试策略与时长预算、异步钩子（RFC-0001）与
-  多 Provider 降级；其余未实现部分列出 §4「计划约束」，不计入本次交付覆盖率。
+- v0.5 覆盖：多轮会话（`Session` 持久化 SPI + 文件/内存存储 + `run_session`）与
+  子 Agent 编排（agent-as-tool）；其余未实现部分列出 §4「计划约束」，不计入本次交付覆盖率。
 
 ## 1. 术语与记法
 
@@ -276,6 +276,26 @@
 | `FC-POST-171` | 后置约束 | `FallbackProvider` 按序降级：某提供方返回**可重试**错误时调用下一个；不可重试错误立即返回（不降级） | `fallback::tests::falls_back_on_retryable_error`、`fallback::tests::does_not_fall_back_on_fatal_error` | Passed |
 | `FC-POST-172` | 后置约束 | 全部提供方失败 → 返回最后一个错误；空列表在构建期拒绝 | `fallback::tests::returns_last_error_when_all_fail`、`fallback::tests::rejects_empty_provider_list` | Passed |
 
+### 2.24 多轮会话与持久化
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-180` | 后置约束 | `run_session`：会话历史 + 新输入消息共同作为运行输入；成功后**新输入与运行新增消息**按序追加回会话；失败/取消时**不修改会话** | `agent::tests::run_session_appends_history_and_new_messages`、`agent::tests::run_session_failure_leaves_session_untouched` | Passed |
+| `FC-POST-181` | 后置约束 | `SessionStore` 语义：`load` 缺失 → `Ok(None)`；`save` 覆盖写；`delete` 幂等（不存在视为成功）；`InMemorySessionStore` 满足全部语义 | `store::tests::in_memory_round_trip`、`store::tests::load_missing_is_none`、`store::tests::delete_is_idempotent` | Passed |
+| `FC-POST-182` | 后置约束 | `FileSessionStore`：每会话一个 JSON 文件；往返恒等（含消息 / 工具结果块 / 思考块）；原子写（临时文件 + 重命名） | `store::tests::file_round_trip`、`store::tests::file_round_trip_preserves_structured_content` | Passed |
+| `FC-ERR-070` | 异常处理 | 存储 IO 失败 → `SessionStoreError::Io`（含路径）；文件损坏 → `SessionStoreError::Corrupted`（显式失败，不静默） | `store::tests::corrupted_file_is_rejected` | Passed |
+| `FC-POST-183` | 后置约束 | `Session` JSON 往返恒等（`id` / `created_at_ms` / `messages`） | `session::tests::session_json_roundtrip` | Passed |
+
+### 2.25 子 Agent 编排（agent-as-tool）
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-190` | 后置约束 | `AgentTool::spec`：名称 / 描述由调用方给定；schema 固定为 `{"type":"object","properties":{"prompt":{"type":"string"}},"required":["prompt"]}` | `agent_tool::tests::spec_shape` | Passed |
+| `FC-POST-191` | 后置约束 | 调用语义：子运行时以 `prompt` 为用户消息运行，最终助手文本作为工具结果；子运行使用独立预算与独立事件流（父事件流仅含工具级事件） | `engine::tests::agent_tool_runs_child_and_returns_final_text` | Passed |
+| `FC-ERR-071` | 异常处理 | 子运行失败 → 错误结果回灌（父运行继续）；子运行取消 → `ToolError::Cancelled`（归约为父运行 `Cancelled`） | `engine::tests::agent_tool_child_failure_is_fed_back` | Passed |
+| `FC-ERR-072` | 异常处理 | 取消传播：父运行取消令牌注入子运行 `RunInput.cancel`（父取消可打断子运行的在途请求） | `engine::tests::agent_tool_propagates_cancel_to_child` | Passed |
+| `FC-ERR-073` | 异常处理 | 入参缺 `prompt`（或非字符串）→ `ToolError::InvalidArguments` | `agent_tool::tests::missing_prompt_is_rejected` | Passed |
+
 ## 3. 属性测试（PBT，对应 FSVDD §4.2.1）
 
 | 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
@@ -286,12 +306,10 @@
 | `FC-INV-013` | 不变量（属性） | 对任意文本 `t`：`Message::user_text(t)` serde 往返恒等 | `properties::prop_message_roundtrip` | Passed |
 | `FC-INV-030` | 不变量（属性） | 对任意文本增量序列 `v`：装配结果 = 单 `Text` 块且文本等于 `v` 的顺序拼接 | `assembler::tests::prop_text_deltas_concatenate` | Passed |
 
-## 4. 计划约束（v0.4+ 未实现；不计入本次覆盖率）
+## 4. 计划约束（v0.5+ 未实现；不计入本次覆盖率）
 
 以下条目在实现对应功能时**必须**移入 §2 并补齐测试映射：
 
-- 会话持久化与恢复（存储后端可插拔）。
-- 子 Agent / 任务编排（工具化的 agent-as-tool）。
 - 长期记忆接口（向量检索等由生态实现）。
 - 完整 JSON Schema 支持（超出 §2.13 子集的关键字）。
 - tracing 结构化 span（当前为事件级埋点 + 原始交互日志）。
@@ -334,10 +352,39 @@ flowchart LR
 | v0.4.0 | 2026-10-16 | `RunHooks` 异步化（RFC-0001）：四个回调改为 `async fn`，在运行任务内 `await` | 破坏性（API） |
 | v0.4.0 | 2026-10-16 | 新增重试策略（`RetryPolicy` / `AgentConfig.retry` / `AgentEventKind::ModelRetry`）与时长预算（`AgentConfig.max_duration` / `BudgetKind::DurationMs`） | 新增（非破坏性） |
 | v0.4.0 | 2026-10-16 | 新增多 Provider 降级 `FallbackProvider`（`mycelium-model`） | 新增 |
+| v0.5.0 | 2026-10-16 | 新增多轮会话契约（§2.24）：`Session` serde、`SessionStore` SPI、`InMemorySessionStore` / `FileSessionStore`、`AgentRuntime::run_session` | 新增（非破坏性） |
+| v0.5.0 | 2026-10-16 | 新增子 Agent 编排契约（§2.25）：`AgentTool`（agent-as-tool，取消传播 + 子运行独立预算 / 事件流） | 新增 |
 
 ## 6. 验证报告（FC-Verification Report）
 
-### 6.1 v0.4（当前）
+### 6.1 v0.5（当前）
+
+- 验证日期：2026-10-16
+- 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
+- 执行命令与结果：
+  - `cargo test --workspace --all-features`：**188 个单元 / 集成测试 + 10 个 doctest** 全部通过；
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`：零告警；
+  - `cargo fmt --all --check`：通过；
+  - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features`：通过。
+- **真实模型联调**（DeepSeek V4.1-Flash，五场景；原始日志随仓库保留
+  `docs/integration/2026-10-16-v0.5/`，含 `sessions/` 会话文件）：
+  - 场景 1 文本 + 思考链：800 事件 / `reasoning_tokens=778`；
+  - 场景 2 工具往返：`add → 42`；
+  - 场景 3 MCP 文件系统：14 工具 / `read_text_file`；
+  - 场景 4 **多轮会话**：两轮完成，`FileSessionStore` 持久化并在新 store 实例中恢复（会话 4 条消息）；
+  - 场景 5 **子 Agent 编排**：`ask_child` 工具委托子运行并返回「2」。
+- 追溯覆盖率：§2 与 §3 共 **141 条**约束（v0.1 43 + v0.2 45 + v0.3 27 + v0.4 16 + v0.5 10），
+  100% 映射到测试且全部 `Passed`（见状态列）。
+- 证伪抽查（Falsification Check，FSVDD §4.2.4）：
+
+| # | 故意破坏的约束 | 预期变红测试 | 结果 |
+| :--- | :--- | :--- | :--- |
+| F17 | `run_session` 不追加用户输入 | `agent::tests::run_session_appends_history_and_new_messages` | 变红 ✓（已还原） |
+| F18 | 文件存储 `load` 永远返回空 | `store::tests::file_round_trip` | 变红 ✓（已还原） |
+| F19 | 取消不传播到子运行 | `engine::tests::agent_tool_propagates_cancel_to_child` | 变红 ✓（已还原） |
+| F20 | `AgentTool` 缺 `prompt` 不再校验 | `agent_tool::tests::missing_prompt_is_rejected` | 变红 ✓（已还原） |
+
+### 6.2 v0.4（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -364,7 +411,7 @@ flowchart LR
 | F15 | 结构化工具结果降级为纯文本 | `engine::tests::structured_tool_result_is_fed_back_intact` | 变红 ✓（已还原） |
 | F16 | 降级判据反转（可重试不降级） | `fallback::tests::falls_back_on_retryable_error` | 变红 ✓（已还原） |
 
-### 6.2 v0.3（历史）
+### 6.3 v0.3（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -398,7 +445,7 @@ flowchart LR
 > F9 首轮未变红暴露了原测试的弱点：它只校验 `call_id` 顺序，而 `call_id` 本身由调用顺序 zip 生成，
 > 内容错位无法被发现。已按 FSVDD 要求强化测试（校验 `call_id` 与 `content` 的对应关系）并复验通过。
 
-### 6.3 v0.2（历史）
+### 6.4 v0.2（历史）
 
 - 验证日期：2026-10-14
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -419,7 +466,7 @@ flowchart LR
 | F7 | 工具错误改为直接终止（不回灌） | `engine::tests::failing_tool_error_is_fed_back` | 变红 ✓（已还原） |
 | F8 | 429 限流映射改为普通 Api 错误 | `provider::tests::maps_error_status_rules` | 变红 ✓（已还原） |
 
-### 6.4 v0.1（历史）
+### 6.5 v0.1（历史）
 
 - 验证日期：2026-10-14；结果：55 个单元 / 属性测试 + 4 个 doctest 全部通过；clippy / fmt / doc 零告警。
 - 证伪抽查 F1 ~ F4（工具名长度上限、重名注册覆盖、转移边删除、饱和加法改回绕）全部按预期变红后还原。

@@ -641,7 +641,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "futures-util",
  "mycelium-core",
@@ -657,7 +657,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-core"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "proptest",
  "serde",
@@ -669,7 +669,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-macros"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -678,7 +678,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-mcp"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "mycelium-core",
@@ -692,7 +692,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-model"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "futures-core",
@@ -707,7 +707,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-provider-openai"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "futures-util",
  "mycelium-core",
@@ -725,7 +725,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-runtime"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "futures-core",
@@ -733,7 +733,9 @@ dependencies = [
  "mycelium-core",
  "mycelium-model",
  "mycelium-tools",
+ "serde",
  "serde_json",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",
@@ -741,7 +743,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-tools"
-version = "0.4.0"
+version = "0.5.0"
 dependencies = [
  "async-trait",
  "mycelium-core",

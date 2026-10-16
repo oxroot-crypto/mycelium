@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use mycelium_core::message::ToolResultBlock;
-use mycelium_core::{AgentError, StopReason, ToolError, ToolName, ToolSpec};
+use mycelium_core::{AgentError, RunId, StopReason, ToolError, ToolName, ToolSpec};
 use mycelium_model::{
     ModelCapabilities, ModelDelta, ModelError, ModelProvider, ModelRequest, ModelStream,
     async_trait, stream_from_deltas,
@@ -445,6 +445,50 @@ impl Tool for StructuredTool {
 /// 返回共享的结构化输出工具。
 pub(crate) fn structured_tool() -> Arc<dyn Tool> {
     Arc::new(StructuredTool)
+}
+
+/// 构造测试用工具上下文。
+pub(crate) fn tool_context(call_id: &str) -> ToolContext {
+    ToolContext {
+        run_id: RunId::generate(),
+        session_id: None,
+        call_id: mycelium_core::ToolCallId::new(call_id).expect("合法 ID"),
+        cancel: mycelium_core::CancellationToken::new(),
+    }
+}
+
+/// 记录最近一次请求取消令牌的挂起提供方（取消传播测试，FC-ERR-072）。
+#[derive(Default)]
+pub(crate) struct CancelRecorderProvider {
+    last_cancel: Mutex<Option<mycelium_core::CancellationToken>>,
+}
+
+impl CancelRecorderProvider {
+    /// 最近一次请求携带的取消令牌。
+    pub(crate) fn last_cancel(&self) -> Option<mycelium_core::CancellationToken> {
+        self.last_cancel.lock().expect("锁未被毒化").clone()
+    }
+}
+
+#[async_trait]
+impl ModelProvider for CancelRecorderProvider {
+    fn id(&self) -> &str {
+        "cancel-recorder"
+    }
+
+    fn capabilities(&self) -> ModelCapabilities {
+        ModelCapabilities {
+            supports_streaming: true,
+            ..Default::default()
+        }
+    }
+
+    async fn stream(&self, request: ModelRequest) -> Result<ModelStream, ModelError> {
+        *self.last_cancel.lock().expect("锁未被毒化") = Some(request.cancel.clone());
+        Ok(Box::pin(futures_util::stream::pending::<
+            Result<ModelDelta, ModelError>,
+        >()))
+    }
 }
 
 /// 固定产出 "pong" 文本流的桩提供方（API 冒烟测试用）。

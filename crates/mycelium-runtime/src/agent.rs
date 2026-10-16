@@ -18,6 +18,7 @@ use crate::builder::AgentRuntimeBuilder;
 use crate::engine::{EVENT_CHANNEL_CAPACITY, Engine, RuntimeParts};
 use crate::hooks::RunHooks;
 use crate::run::{RunInput, RunOutcome};
+use crate::session::Session;
 
 /// 运行事件流。
 pub type AgentEventStream = Pin<Box<dyn Stream<Item = AgentEvent> + Send + 'static>>;
@@ -220,6 +221,93 @@ impl AgentRuntime {
             }));
         AgentRun { events, handle }
     }
+
+    /// 在会话上执行一轮运行（多轮对话入口）。
+    ///
+    /// 语义（FC-POST-180）：
+    /// - 运行输入 = 会话历史 + `input.messages`；
+    /// - 成功后把 `input.messages` 与运行新增消息按序追加回会话；
+    /// - 失败 / 取消时**不修改会话**。
+    ///
+    /// # Errors
+    /// 与 [`AgentRuntime::run`] 相同。
+    ///
+    /// # Examples
+    /// ```
+    /// use std::sync::Arc;
+    ///
+    /// use mycelium_core::{AgentConfig, ModelId, StopReason};
+    /// use mycelium_model::{
+    ///     ModelCapabilities, ModelDelta, ModelError, ModelProvider, ModelRequest, ModelStream,
+    ///     async_trait, stream_from_deltas,
+    /// };
+    /// use mycelium_runtime::{AgentRuntime, RunInput, Session};
+    ///
+    /// struct EchoProvider;
+    ///
+    /// #[async_trait]
+    /// impl ModelProvider for EchoProvider {
+    ///     fn id(&self) -> &str {
+    ///         "echo"
+    ///     }
+    ///
+    ///     fn capabilities(&self) -> ModelCapabilities {
+    ///         ModelCapabilities {
+    ///             supports_streaming: true,
+    ///             ..Default::default()
+    ///         }
+    ///     }
+    ///
+    ///     async fn stream(&self, _request: ModelRequest) -> Result<ModelStream, ModelError> {
+    ///         Ok(stream_from_deltas(vec![
+    ///             ModelDelta::TextDelta { text: "pong".to_owned() },
+    ///             ModelDelta::Finished { stop_reason: StopReason::EndTurn },
+    ///         ]))
+    ///     }
+    /// }
+    ///
+    /// # #[tokio::main]
+    /// # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// let config = AgentConfig::builder().model(ModelId::new("echo")?).build()?;
+    /// let runtime = AgentRuntime::builder()
+    ///     .config(config)
+    ///     .provider(Arc::new(EchoProvider))
+    ///     .build()?;
+    ///
+    /// let mut session = Session::new(0);
+    /// runtime
+    ///     .run_session(&mut session, RunInput::from_user_text("ping"))
+    ///     .await?;
+    /// // 会话保留「用户输入 + 助手回复」两轮消息
+    /// assert_eq!(session.len(), 2);
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub async fn run_session(
+        &self,
+        session: &mut Session,
+        input: RunInput,
+    ) -> Result<RunOutcome, AgentError> {
+        let RunInput {
+            messages: new_messages,
+            cancel,
+        } = input;
+        let mut combined = session.messages().to_vec();
+        combined.extend(new_messages.iter().cloned());
+        let outcome = self
+            .run(RunInput {
+                messages: combined,
+                cancel,
+            })
+            .await?;
+        for message in new_messages {
+            session.push(message);
+        }
+        for message in &outcome.messages {
+            session.push(message.clone());
+        }
+        Ok(outcome)
+    }
 }
 
 impl fmt::Debug for AgentRuntime {
@@ -308,11 +396,11 @@ impl fmt::Debug for RunFuture {
 #[cfg(test)]
 mod tests {
     use futures_util::StreamExt;
-    use mycelium_core::ModelId;
     use mycelium_core::event::AgentEventKind;
+    use mycelium_core::{Message, ModelError, ModelId, Role};
 
     use super::*;
-    use crate::test_support::stub_provider;
+    use crate::test_support::{ScriptedProvider, ScriptedResponse, stub_provider, text_response};
 
     fn runtime_with_stub() -> AgentRuntime {
         let config = AgentConfig::builder()
@@ -372,6 +460,80 @@ mod tests {
         assert_eq!(first.seq, 0);
         let outcome = run.wait().await.unwrap();
         assert_eq!(outcome.steps, 1);
+    }
+
+    #[tokio::test]
+    async fn run_session_appends_history_and_new_messages() {
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            text_response("好，记住了"),
+            text_response("7"),
+        ]));
+        let runtime = AgentRuntime::builder()
+            .config(
+                AgentConfig::builder()
+                    .model(ModelId::new("scripted-model").unwrap())
+                    .build()
+                    .unwrap(),
+            )
+            .provider(provider.clone())
+            .build()
+            .unwrap();
+
+        let mut session = Session::new(0);
+        // 第一轮：用户输入 + 助手回复进入会话
+        runtime
+            .run_session(&mut session, RunInput::from_user_text("请记住数字 7"))
+            .await
+            .unwrap();
+        assert_eq!(session.len(), 2);
+        assert_eq!(
+            session.messages().first(),
+            Some(&Message::user_text("请记住数字 7"))
+        );
+        assert_eq!(
+            session.messages().last(),
+            Some(&Message::assistant_text("好，记住了"))
+        );
+
+        // 第二轮：历史 + 新输入共同作为运行输入
+        runtime
+            .run_session(&mut session, RunInput::from_user_text("数字是多少？"))
+            .await
+            .unwrap();
+        assert_eq!(session.len(), 4);
+        let request = provider.last_request().expect("应捕获到请求");
+        assert_eq!(request.messages.len(), 3, "历史 2 条 + 新输入 1 条");
+        assert_eq!(request.messages[0].role(), Role::User);
+        assert_eq!(request.messages[2].role(), Role::User);
+    }
+
+    #[tokio::test]
+    async fn run_session_failure_leaves_session_untouched() {
+        let provider = Arc::new(ScriptedProvider::new(vec![ScriptedResponse::Error(
+            ModelError::Unsupported {
+                feature: "tool_calling",
+            },
+        )]));
+        let runtime = AgentRuntime::builder()
+            .config(
+                AgentConfig::builder()
+                    .model(ModelId::new("scripted-model").unwrap())
+                    .build()
+                    .unwrap(),
+            )
+            .provider(provider)
+            .build()
+            .unwrap();
+
+        let mut session = Session::new(0);
+        session.push(Message::user_text("已有历史"));
+        let result = runtime
+            .run_session(&mut session, RunInput::from_user_text("新输入"))
+            .await;
+        assert!(result.is_err());
+        // 失败不修改会话
+        assert_eq!(session.len(), 1);
+        assert_eq!(session.messages()[0], Message::user_text("已有历史"));
     }
 
     #[test]

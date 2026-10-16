@@ -1,11 +1,14 @@
 //! 会话：多轮对话的消息累积容器。
 
+use serde::{Deserialize, Serialize};
+
 use mycelium_core::{Message, SessionId};
 
 /// 会话。
 ///
-/// v0.1 为进程内存储；持久化与恢复自 v0.4 起提供（见 roadmap）。
-#[derive(Debug, Clone)]
+/// 持久化通过 [`crate::store::SessionStore`] 完成；JSON 往返恒等（FC-POST-183）：
+/// `{"id": "...", "created_at_ms": 0, "messages": [...]}`。
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Session {
     id: SessionId,
     created_at_ms: u64,
@@ -85,5 +88,29 @@ mod tests {
             session.messages().last(),
             Some(&Message::assistant_text("second"))
         );
+    }
+
+    #[test]
+    fn session_json_roundtrip() {
+        let mut session = Session::new(1_700_000_000_000);
+        session.push(Message::user_text("你好"));
+        session.push(
+            Message::new(
+                mycelium_core::Role::Assistant,
+                vec![
+                    mycelium_core::ContentBlock::Thinking {
+                        text: "思考".to_owned(),
+                    },
+                    mycelium_core::ContentBlock::Text {
+                        text: "回复".to_owned(),
+                    },
+                ],
+            )
+            .unwrap(),
+        );
+
+        let json = serde_json::to_string(&session).unwrap();
+        let decoded: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(decoded, session);
     }
 }

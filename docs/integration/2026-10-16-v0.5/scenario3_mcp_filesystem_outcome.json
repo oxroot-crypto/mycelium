@@ -1,0 +1,52 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "Let me read the file.",
+          "type": "thinking"
+        },
+        {
+          "id": "call_00_Ez3jq2U1qBoZdUmjn59x8602",
+          "input": {
+            "path": "/tmp/mycelium-mcp-demo/hello.txt"
+          },
+          "name": "read_text_file",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "mycelium × MCP：你好，世界！\n",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_call_id": "call_00_Ez3jq2U1qBoZdUmjn59x8602",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "text": "文件 `/tmp/mycelium-mcp-demo/hello.txt` 的内容原样如下：\n\n```\nmycelium × MCP：你好，世界！\n```",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 2,
+  "usage": {
+    "input_tokens": 4641,
+    "output_tokens": 90,
+    "reasoning_tokens": 6
+  }
+}

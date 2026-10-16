@@ -17,7 +17,10 @@ docs/integration/
 │   ├── scenario3_mcp_filesystem_events.jsonl
 │   └── scenario3_mcp_filesystem_outcome.json
 └── 2026-10-16-v0.4/                         # v0.4 联调（结构化工具结果 / 重试版本重跑）
-    └── （同上结构）
+│   └── （同上结构）
+└── 2026-10-16-v0.5/                         # v0.5 联调（新增场景 4 多轮会话 / 场景 5 子 Agent）
+    ├── （同上结构）
+    └── sessions/                            # 场景 4 的会话持久化文件（FileSessionStore）
 ```
 
 ## 产物说明
@@ -46,4 +49,6 @@ cargo run -p mycelium --features provider-openai --example live_integration -- d
 1. 文本对话 + 思考链（`Thinking` 块 / `ModelThinkingDelta` 事件 / `reasoning_tokens`）；
 2. `#[tool]` 派生宏生成工具的调用往返（`add`）；
 3. MCP 文件系统服务（npx `@modelcontextprotocol/server-filesystem`）：模型自主选择
-   `read_text_file` 读取沙箱文件并回答内容。
+   `read_text_file` 读取沙箱文件并回答内容；
+4. 多轮会话（`run_session` + `FileSessionStore` 持久化并在新 store 实例中恢复）；
+5. 子 Agent 编排（`AgentTool`：父 Agent 委托子运行并转述结果）。

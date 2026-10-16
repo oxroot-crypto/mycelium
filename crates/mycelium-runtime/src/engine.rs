@@ -679,12 +679,14 @@ mod tests {
 
     use super::*;
     use crate::AgentRuntime;
+    use crate::agent_tool::AgentTool;
     use crate::run::RunInput;
     use crate::test_support::{
-        AsyncRecordingHooks, RecordingHooks, ScriptedProvider, ScriptedResponse, cancel_wait_tool,
-        cancelled_tool, counting_echo_tool, delay_tool, echo_tool, failing_tool, pending_provider,
-        slow_tool, strict_tool, structured_tool, text_response, text_response_with_usage,
-        tool_call_response, tool_call_response_with_usage, tool_calls_response,
+        AsyncRecordingHooks, CancelRecorderProvider, RecordingHooks, ScriptedProvider,
+        ScriptedResponse, cancel_wait_tool, cancelled_tool, counting_echo_tool, delay_tool,
+        echo_tool, failing_tool, pending_provider, slow_tool, strict_tool, structured_tool,
+        text_response, text_response_with_usage, tool_call_response, tool_call_response_with_usage,
+        tool_calls_response,
     };
 
     fn base_config() -> AgentConfig {
@@ -1710,5 +1712,120 @@ mod tests {
                 "run_end:true",
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn agent_tool_runs_child_and_returns_final_text() {
+        let child_provider = Arc::new(ScriptedProvider::new(vec![text_response("子结果")]));
+        let child = build_runtime(base_config(), child_provider.clone(), vec![]);
+        let parent_provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("ask_child", "c1", "{\"prompt\":\"1+1?\"}"),
+            text_response("父完成"),
+        ]));
+        let runtime = build_runtime(
+            base_config(),
+            parent_provider,
+            vec![Arc::new(AgentTool::new(
+                ToolName::new("ask_child").unwrap(),
+                "子 Agent",
+                Arc::new(child),
+            ))],
+        );
+
+        let outcome = runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+        match &outcome.messages[1].content()[0] {
+            ContentBlock::ToolResult {
+                content, is_error, ..
+            } => {
+                assert!(!is_error);
+                assert_eq!(tool_text(content), "子结果");
+            }
+            other => panic!("期望 ToolResult，实际：{other:?}"),
+        }
+        // 子运行使用独立预算：恰好一次模型调用
+        assert_eq!(child_provider.call_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn agent_tool_child_failure_is_fed_back() {
+        let child_provider = Arc::new(ScriptedProvider::new(vec![ScriptedResponse::Error(
+            ModelError::Transport {
+                message: "child down".to_owned(),
+            },
+        )]));
+        let child = build_runtime(base_config(), child_provider, vec![]);
+        let parent_provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("ask_child", "c1", "{\"prompt\":\"hi\"}"),
+            text_response("父完成"),
+        ]));
+        let runtime = build_runtime(
+            base_config(),
+            parent_provider,
+            vec![Arc::new(AgentTool::new(
+                ToolName::new("ask_child").unwrap(),
+                "子 Agent",
+                Arc::new(child),
+            ))],
+        );
+
+        let outcome = runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+        match &outcome.messages[1].content()[0] {
+            ContentBlock::ToolResult {
+                content, is_error, ..
+            } => {
+                assert!(is_error);
+                assert!(tool_text(content).contains("子 Agent 运行失败"));
+                assert!(tool_text(content).contains("child down"));
+            }
+            other => panic!("期望 ToolResult，实际：{other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn agent_tool_propagates_cancel_to_child() {
+        let child_provider = Arc::new(CancelRecorderProvider::default());
+        let child = build_runtime(base_config(), child_provider.clone(), vec![]);
+        let parent_provider = Arc::new(ScriptedProvider::new(vec![tool_call_response(
+            "ask_child",
+            "c1",
+            "{\"prompt\":\"hi\"}",
+        )]));
+        let runtime = build_runtime(
+            base_config(),
+            parent_provider,
+            vec![Arc::new(AgentTool::new(
+                ToolName::new("ask_child").unwrap(),
+                "子 Agent",
+                Arc::new(child),
+            ))],
+        );
+
+        let input = RunInput::from_user_text("ping");
+        let cancel = input.cancel.clone();
+        let (mut events, result) = runtime.run_events(input).split();
+
+        // 等待子运行的模型请求上路（记录到父运行注入的取消令牌）
+        let child_cancel = tokio::time::timeout(Duration::from_secs(2), async {
+            loop {
+                if let Some(token) = child_provider.last_cancel() {
+                    return token;
+                }
+                tokio::time::sleep(Duration::from_millis(5)).await;
+            }
+        })
+        .await
+        .expect("子运行应进入在途状态");
+
+        cancel.cancel();
+        let outcome = tokio::time::timeout(Duration::from_secs(2), result.await_result())
+            .await
+            .expect("取消后应迅速结束");
+        assert!(matches!(outcome, Err(AgentError::Cancelled)));
+        assert!(
+            child_cancel.is_cancelled(),
+            "取消必须传播到子运行的在途请求令牌"
+        );
+        // 消费剩余事件（发送端已关闭）
+        while events.next().await.is_some() {}
     }
 }

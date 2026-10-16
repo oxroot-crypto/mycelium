@@ -103,7 +103,8 @@ flowchart TB
 | :--- | :--- | :--- | :--- |
 | `ModelProvider` | `mycelium-model` | 接入任意模型服务（HTTP / 本地推理） | v0.2 已提供 `mycelium-provider-openai`；v0.4 多 Provider 路由 |
 | `Tool` | `mycelium-tools` | 接入任意工具（函数、HTTP、MCP） | v0.3 提供 derive 宏与 MCP 适配 |
-| `RunHooks` | `mycelium-runtime` | 观测与拦截（日志、指标、审批） | v0.3 升级为异步钩子 + 权限策略层 |
+| `RunHooks` | `mycelium-runtime` | 观测与拦截（异步审计 / 指标） | v0.5 已异步化（RFC-0001）；改写能力见后续 RFC |
+| `SessionStore` | `mycelium-runtime` | 会话持久化（可插拔存储后端） | v0.5 已提供内存 / 文件实现；数据库 / 云存储在生态侧 |
 
 ## 8. 错误模型
 
@@ -163,8 +164,11 @@ v0.3 已完成：工具并发执行与保序回灌、工具超时、权限策略
 v0.4 已完成第一批：结构化工具结果（图文多内容块，RFC-0002）、异步钩子（RFC-0001）、
 重试策略与 `ModelRetry` 事件、多 Provider 降级（`FallbackProvider`）、时长预算、MSRV CI。
 
-尚未实现（见 roadmap）：会话持久化、子 Agent 编排、长期记忆、MCP 资源 / HTTP 传输、
-完整 JSON Schema、tracing span、cargo-mutants / cargo-deny。
+v0.5 已完成：多轮会话（`SessionStore` SPI + 内存/文件实现 + `run_session`）与
+子 Agent 编排（`AgentTool`：agent-as-tool），并经 DeepSeek 五场景真实联调验证。
+
+尚未实现（见 roadmap）：长期记忆、MCP 资源 / HTTP 传输、完整 JSON Schema、tracing span、
+cargo-mutants / cargo-deny。
 
 - 生命周期与状态机：`docs/architecture/lifecycle.md`
 - 形式化约束矩阵：`docs/spec/core.md`

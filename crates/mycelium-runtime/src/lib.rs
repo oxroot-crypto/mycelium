@@ -8,17 +8,21 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod agent;
+pub mod agent_tool;
 pub mod builder;
 pub(crate) mod engine;
 pub mod hooks;
 pub mod run;
 pub mod session;
+pub mod store;
 
 #[cfg(test)]
 mod test_support;
 
 pub use agent::{AgentEventStream, AgentRun, AgentRuntime, RunFuture};
+pub use agent_tool::AgentTool;
 pub use builder::{AgentRuntimeBuilder, BuildError};
 pub use hooks::{RunContext, RunHooks};
 pub use run::{RunInput, RunOutcome};
 pub use session::Session;
+pub use store::{FileSessionStore, InMemorySessionStore, SessionStore, SessionStoreError};

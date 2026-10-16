@@ -28,8 +28,9 @@ pub mod prelude {
         ModelProvider, ModelRequest, ModelResponse, ModelStream, async_trait, stream_from_deltas,
     };
     pub use crate::runtime::{
-        AgentEventStream, AgentRun, AgentRuntime, AgentRuntimeBuilder, BuildError, RunContext,
-        RunFuture, RunHooks, RunInput, RunOutcome, Session,
+        AgentEventStream, AgentRun, AgentRuntime, AgentRuntimeBuilder, AgentTool, BuildError,
+        FileSessionStore, InMemorySessionStore, RunContext, RunFuture, RunHooks, RunInput,
+        RunOutcome, Session, SessionStore, SessionStoreError,
     };
     pub use crate::tools::{
         AllowAll, AllowList, DenyList, PolicyDecision, RegistryError, SchemaViolation, Tool,
