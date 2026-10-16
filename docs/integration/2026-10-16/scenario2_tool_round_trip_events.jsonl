@@ -1,0 +1,47 @@
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":0,"at_ms":1792126781793,"type":"run_started","message_count":1}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":1,"at_ms":1792126781793,"type":"step_started","step":1}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":2,"at_ms":1792126781793,"type":"model_request_started","model":"deepseek-flash","message_count":1,"tool_count":1}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":3,"at_ms":1792126782344,"type":"model_thinking_delta","text":"The"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":4,"at_ms":1792126782407,"type":"model_thinking_delta","text":" user"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":5,"at_ms":1792126782431,"type":"model_thinking_delta","text":" wants"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":6,"at_ms":1792126782431,"type":"model_thinking_delta","text":" me"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":7,"at_ms":1792126782431,"type":"model_thinking_delta","text":" to"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":8,"at_ms":1792126782431,"type":"model_thinking_delta","text":" use"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":9,"at_ms":1792126782447,"type":"model_thinking_delta","text":" the"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":10,"at_ms":1792126782447,"type":"model_thinking_delta","text":" add"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":11,"at_ms":1792126782447,"type":"model_thinking_delta","text":" tool"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":12,"at_ms":1792126782447,"type":"model_thinking_delta","text":" to"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":13,"at_ms":1792126782447,"type":"model_thinking_delta","text":" calculate"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":14,"at_ms":1792126782447,"type":"model_thinking_delta","text":" "}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":15,"at_ms":1792126782468,"type":"model_thinking_delta","text":"21"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":16,"at_ms":1792126782468,"type":"model_thinking_delta","text":" +"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":17,"at_ms":1792126782468,"type":"model_thinking_delta","text":" "}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":18,"at_ms":1792126782468,"type":"model_thinking_delta","text":"21"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":19,"at_ms":1792126782468,"type":"model_thinking_delta","text":"."}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":20,"at_ms":1792126782468,"type":"model_thinking_delta","text":" Let"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":21,"at_ms":1792126782476,"type":"model_thinking_delta","text":" me"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":22,"at_ms":1792126782476,"type":"model_thinking_delta","text":" do"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":23,"at_ms":1792126782476,"type":"model_thinking_delta","text":" that"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":24,"at_ms":1792126782476,"type":"model_thinking_delta","text":"."}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":25,"at_ms":1792126782621,"type":"model_request_finished","stop_reason":"tool_use","usage":{"input_tokens":338,"output_tokens":75,"reasoning_tokens":22}}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":26,"at_ms":1792126782621,"type":"model_tool_call","call":{"id":"call_00_BgerkaQUC4siJCHtoZVY5058","name":"add","arguments":{"a":21,"b":21}}}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":27,"at_ms":1792126782621,"type":"tool_call_started","call_id":"call_00_BgerkaQUC4siJCHtoZVY5058","name":"add"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":28,"at_ms":1792126782621,"type":"tool_call_finished","call_id":"call_00_BgerkaQUC4siJCHtoZVY5058","name":"add","is_error":false}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":29,"at_ms":1792126782621,"type":"step_started","step":2}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":30,"at_ms":1792126782621,"type":"model_request_started","model":"deepseek-flash","message_count":3,"tool_count":1}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":31,"at_ms":1792126783324,"type":"model_thinking_delta","text":"The"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":32,"at_ms":1792126783413,"type":"model_thinking_delta","text":" result"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":33,"at_ms":1792126783431,"type":"model_thinking_delta","text":" is"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":34,"at_ms":1792126783431,"type":"model_thinking_delta","text":" "}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":35,"at_ms":1792126783431,"type":"model_thinking_delta","text":"42"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":36,"at_ms":1792126783431,"type":"model_thinking_delta","text":"."}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":37,"at_ms":1792126783431,"type":"model_text_delta","text":"21"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":38,"at_ms":1792126783445,"type":"model_text_delta","text":" +"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":39,"at_ms":1792126783445,"type":"model_text_delta","text":" "}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":40,"at_ms":1792126783445,"type":"model_text_delta","text":"21"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":41,"at_ms":1792126783445,"type":"model_text_delta","text":" ="}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":42,"at_ms":1792126783445,"type":"model_text_delta","text":" **"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":43,"at_ms":1792126783445,"type":"model_text_delta","text":"42"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":44,"at_ms":1792126783461,"type":"model_text_delta","text":"**"}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":45,"at_ms":1792126783461,"type":"model_request_finished","stop_reason":"end_turn","usage":{"input_tokens":426,"output_tokens":15,"reasoning_tokens":6}}
+{"run_id":"01a14314-8961-77c3-bf14-4acc40feab6d","seq":46,"at_ms":1792126783461,"type":"run_completed","usage":{"input_tokens":764,"output_tokens":90,"reasoning_tokens":28},"steps":2}

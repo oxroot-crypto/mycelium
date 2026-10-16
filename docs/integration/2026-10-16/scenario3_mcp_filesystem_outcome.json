@@ -1,0 +1,47 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "Let me read the file.",
+          "type": "thinking"
+        },
+        {
+          "id": "call_00_NP9Y8VJx0nQ7l20m2DUl4170",
+          "input": {
+            "path": "/tmp/mycelium-mcp-demo/hello.txt"
+          },
+          "name": "read_text_file",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "content": "mycelium × MCP：你好，世界！\n",
+          "is_error": false,
+          "tool_call_id": "call_00_NP9Y8VJx0nQ7l20m2DUl4170",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "text": "文件 `/tmp/mycelium-mcp-demo/hello.txt` 的内容原样如下：\n\n```\nmycelium × MCP：你好，世界！\n```\n\n即：一行文字 \"mycelium × MCP：你好，世界！\"（末尾带一个换行）。",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 2,
+  "usage": {
+    "input_tokens": 4641,
+    "output_tokens": 114,
+    "reasoning_tokens": 6
+  }
+}

@@ -145,9 +145,12 @@ impl ModelProvider for OpenAiProvider {
 
     async fn stream(&self, request: ModelRequest) -> Result<ModelStream, ModelError> {
         let body = build_chat_request(&request);
+        let url = format!("{}/chat/completions", self.base_url);
+        // 全量原始交互日志（联调可追溯；Authorization 头不落盘）。
+        tracing::debug!(target: "mycelium::openai", %url, body = %body, "→ POST /chat/completions");
         let response = self
             .client
-            .post(format!("{}/chat/completions", self.base_url))
+            .post(url)
             .bearer_auth(&self.api_key)
             .json(&body)
             .send()
@@ -155,6 +158,7 @@ impl ModelProvider for OpenAiProvider {
             .map_err(map_request_error)?;
 
         let status = response.status();
+        tracing::debug!(target: "mycelium::openai", status = status.as_u16(), "← HTTP 响应");
         if !status.is_success() {
             return Err(map_error_response(status, response).await);
         }

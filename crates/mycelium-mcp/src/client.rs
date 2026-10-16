@@ -153,6 +153,8 @@ impl McpClient {
                         if line.is_empty() {
                             continue;
                         }
+                        // 原始 JSON-RPC 入站报文落痕（联调可追溯）。
+                        tracing::trace!(target: "mycelium::mcp", direction = "recv", message = line, "JSON-RPC");
                         // 非法 JSON 的行忽略：MCP stdio 传输下服务端不应输出非 JSON 内容，
                         // 但不应因单行脏数据终止整个会话。
                         let Ok(message) = serde_json::from_str::<Value>(line) else {
@@ -377,6 +379,8 @@ impl Connection {
             message: error.to_string(),
         })?;
         line.push('\n');
+        // 原始 JSON-RPC 出站报文落痕（联调可追溯）。
+        tracing::trace!(target: "mycelium::mcp", direction = "send", message = line.trim_end(), "JSON-RPC");
         let mut writer = self.writer.lock().await;
         if let Err(error) = writer.write_all(line.as_bytes()).await {
             // 写失败意味着会话不可继续：标记关闭并显式失败（后续请求立即返回 TransportClosed）。

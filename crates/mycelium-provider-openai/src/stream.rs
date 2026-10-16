@@ -110,9 +110,15 @@ where
     fn handle_event(&mut self, event: &str) {
         for line in event.lines() {
             let line = line.trim_end_matches('\r');
-            if line.is_empty() || line.starts_with(':') {
+            if line.is_empty() {
                 continue;
             }
+            // 注释行（以 ':' 开头）忽略。
+            if line.starts_with(':') {
+                continue;
+            }
+            // 原始 SSE 行落痕（联调可追溯）。
+            tracing::trace!(target: "mycelium::openai::sse", raw = line, "SSE");
             let Some(data) = line.strip_prefix("data:") else {
                 continue;
             };

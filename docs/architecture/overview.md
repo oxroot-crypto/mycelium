@@ -131,7 +131,8 @@ flowchart TB
 | `futures-core` / `futures-util` | model / runtime | `Stream` 抽象与流构造工具 |
 | `reqwest`（rustls-no-provider） | provider-openai | HTTP 客户端；不启用默认 TLS 后端，改用 ring（见下行） |
 | `rustls`（ring 后端） | provider-openai | TLS 实现；ring 后端仅需 C 编译器、无需 cmake（aws-lc-rs 需要 cmake，刻意规避） |
-| `tracing` | runtime | 结构化日志埋点（事件级，v0.3 升级 span） |
+| `tracing` | runtime / provider / mcp | 结构化日志；联调原始交互（HTTP 请求体 / SSE 行 / JSON-RPC 原文）经 subscriber 落盘（见 `docs/integration/`） |
+| `tracing-subscriber`（dev） | 门面示例 | 联调日志落盘订阅器（TRACE 全量，无 ANSI） |
 | `proptest`（dev） | core、model | FSVDD 强制要求的基于属性测试 |
 
 依赖纪律：禁止 `*` 版本范围；新增依赖必须在本表登记理由并说明是否可零依赖实现。

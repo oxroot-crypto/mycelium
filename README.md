@@ -137,6 +137,7 @@ cargo run -p mycelium-provider-openai --example deepseek
 - [`docs/architecture/lifecycle.md`](docs/architecture/lifecycle.md) —— 运行生命周期状态机
 - [`docs/spec/core.md`](docs/spec/core.md) —— 形式化约束矩阵（FC-Matrix，单一真实来源）
 - [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md) —— 路线图
+- [`docs/integration/`](docs/integration/) —— 真实联调原始交互日志（DeepSeek × MCP，可追溯 / 可重放）
 
 ## 开发
 

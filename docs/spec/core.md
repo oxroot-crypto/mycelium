@@ -316,13 +316,13 @@ flowchart LR
   - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features`：通过；
   - `cargo run -p mycelium --example basic`：端到端成功。
 - **真实模型联调**（DeepSeek V4.1-Flash，`deepseek-flash`）：
-  - `cargo run -p mycelium-provider-openai --example deepseek`：纯文本对话、工具调用往返
-    （add → 42）、流式事件、思考链（`reasoning_content` → `Thinking` 块；`reasoning_tokens` 统计）
-    全部通过；
-  - `cargo run -p mycelium --features provider-openai --example agent_deepseek_mcp`（全栈）：
-    npx `@modelcontextprotocol/server-filesystem` 启动成功并发现 **14 个 MCP 工具**；
-    模型自主调用 `read_text_file`，通过 MCP 正确读取并回答文件内容（steps=2，含思考链与
-    `reasoning_tokens`）。
+  - 正式联调（**完整原始交互日志随仓库保留**，见 [`docs/integration/2026-10-16/`](../../integration/2026-10-16/)）：
+    - 场景 1 文本对话 + 思考链：451 条事件，`reasoning_tokens=422`，思考 735 字；
+    - 场景 2 `#[tool]` 工具往返：`add` → 42（steps=2）；
+    - 场景 3 MCP 文件系统：14 个工具，模型自主调用 `read_text_file` 并正确回答文件内容（steps=2）；
+    - 产物：`transcript.log`（HTTP 请求体 / SSE 逐行 / MCP JSON-RPC 双向原文）、
+      `scenario*_events.jsonl`、`scenario*_outcome.json`、`report.md`；
+  - 复现：`cargo run -p mycelium --features provider-openai --example live_integration -- <目录>`。
 - 追溯覆盖率：§2 与 §3 共 **115 条**约束（v0.1 的 43 条 + v0.2 的 45 条 + v0.3 的 27 条），
   100% 映射到测试且全部 `Passed`（见状态列）。
 - 证伪抽查（Falsification Check，FSVDD §4.2.4）：
