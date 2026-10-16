@@ -105,6 +105,7 @@ flowchart TB
 | `Tool` | `mycelium-tools` | 接入任意工具（函数、HTTP、MCP） | v0.3 提供 derive 宏与 MCP 适配 |
 | `RunHooks` | `mycelium-runtime` | 观测与拦截（异步审计 / 指标） | v0.5 已异步化（RFC-0001）；改写能力见后续 RFC |
 | `SessionStore` | `mycelium-runtime` | 会话持久化（可插拔存储后端） | v0.5 已提供内存 / 文件实现；数据库 / 云存储在生态侧 |
+| `Memory` | `mycelium-runtime` | 跨会话长期记忆（写入 / 召回 / 遗忘） | v0.6 已提供 SPI 与朴素内存实现；向量检索在生态侧 |
 
 ## 8. 错误模型
 
@@ -130,7 +131,7 @@ flowchart TB
 | `serde` / `serde_json` | core / model / tools / provider | wire 格式与 JSON Schema 的生态标准，无可行替代 |
 | `thiserror` | core / model / tools / mcp / runtime / provider | 错误枚举样板，编译期展开、零运行时开销 |
 | `async-trait` | model / tools | stable 上对象安全异步 trait 的标准做法（`Arc<dyn Tool>` 要求 dyn 兼容） |
-| `uuid`（v7） | core | 时间有序 ID，便于持久化与排序 |
+| `uuid`（v7） | core / runtime | 时间有序 ID（会话 / 运行 / 记忆），便于持久化与排序 |
 | `tokio` / `tokio-util` | runtime / provider（及测试） | 栈基线决策；`CancellationToken` 作为统一取消原语 |
 | `futures-core` / `futures-util` | model / runtime | `Stream` 抽象与流构造工具 |
 | `reqwest`（rustls-no-provider） | provider-openai | HTTP 客户端；不启用默认 TLS 后端，改用 ring（见下行） |
@@ -167,8 +168,11 @@ v0.4 已完成第一批：结构化工具结果（图文多内容块，RFC-0002�
 v0.5 已完成：多轮会话（`SessionStore` SPI + 内存/文件实现 + `run_session`）与
 子 Agent 编排（`AgentTool`：agent-as-tool），并经 DeepSeek 五场景真实联调验证。
 
-尚未实现（见 roadmap）：长期记忆、MCP 资源 / HTTP 传输、完整 JSON Schema、tracing span、
-cargo-mutants / cargo-deny。
+v0.6 已完成：长期记忆 SPI（`Memory` + `InMemoryMemory`）、JSON Schema 子集扩充
+（组合/边界/长度/数组约束）、tracing 结构化 span（`mycelium.run` / `step` / `tool`）。
+
+尚未实现（见 roadmap）：MCP 资源 / 提示模板 / HTTP 传输、剩余 JSON Schema 关键字、
+外部记忆后端、cargo-mutants / cargo-deny。
 
 - 生命周期与状态机：`docs/architecture/lifecycle.md`
 - 形式化约束矩阵：`docs/spec/core.md`

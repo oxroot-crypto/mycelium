@@ -18,9 +18,11 @@ docs/integration/
 │   └── scenario3_mcp_filesystem_outcome.json
 └── 2026-10-16-v0.4/                         # v0.4 联调（结构化工具结果 / 重试版本重跑）
 │   └── （同上结构）
-└── 2026-10-16-v0.5/                         # v0.5 联调（新增场景 4 多轮会话 / 场景 5 子 Agent）
-    ├── （同上结构）
-    └── sessions/                            # 场景 4 的会话持久化文件（FileSessionStore）
+└── 2026-10-16-v0.5/                         # v0.5 联调（场景 4 多轮会话 / 场景 5 子 Agent）
+│   ├── （同上结构）
+│   └── sessions/                            # 场景 4 的会话持久化文件（FileSessionStore）
+└── 2026-10-16-v0.6/                         # v0.6 联调（含结构化 span 的完整 transcript）
+    └── （同上结构）
 ```
 
 ## 产物说明

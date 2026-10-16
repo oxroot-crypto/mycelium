@@ -30,6 +30,7 @@ use mycelium_tools::schema::validate_arguments;
 use mycelium_tools::{Tool, ToolContext, ToolOutput, ToolRegistry};
 use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::mpsc::Sender;
+use tracing::Instrument;
 
 use crate::hooks::{RunContext, RunHooks};
 use crate::run::{RunInput, RunOutcome};
@@ -169,7 +170,15 @@ impl Engine {
             hooks.on_run_start(&context).await;
         }
 
-        match self.drive(input).await {
+        // 结构化 span（FC-POST-220）：run 作用域覆盖整个执行循环。
+        let run_span = tracing::info_span!(
+            "mycelium.run",
+            run_id = %self.run_id,
+            provider = self.provider.id(),
+            model = %self.config.model(),
+        );
+        let result = self.drive(input).instrument(run_span).await;
+        match result {
             Ok(output) => {
                 self.emitter
                     .emit(AgentEventKind::RunCompleted {
@@ -273,7 +282,8 @@ impl Engine {
                 })
                 .await;
 
-            let response = match self.call_model(&messages).await {
+            let step_span = tracing::info_span!("mycelium.step", step = steps);
+            let response = match self.call_model(&messages).instrument(step_span).await {
                 Ok(response) => {
                     state = transition(state, RunEvent::ModelCompleted)?;
                     response
@@ -531,7 +541,12 @@ impl ToolRuntime {
             })
             .await;
 
-        let outcome = self.execute(call).await;
+        let tool_span = tracing::info_span!(
+            "mycelium.tool",
+            tool = %call.name,
+            call_id = %call.id,
+        );
+        let outcome = self.execute(call).instrument(tool_span).await;
 
         // 无论成功、错误还是取消，都必须补齐 Finished 以维持配对不变量。
         let is_error = match &outcome {
@@ -1778,6 +1793,51 @@ mod tests {
                 assert!(tool_text(content).contains("child down"));
             }
             other => panic!("期望 ToolResult，实际：{other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn run_emits_structured_spans() {
+        // 捕获 tracing 输出（fmt subscriber → 内存缓冲，含 NEW/CLOSE span 事件）
+        #[derive(Clone)]
+        struct Buffer(Arc<std::sync::Mutex<Vec<u8>>>);
+        impl std::io::Write for Buffer {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().expect("锁未被毒化").extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        let buffer = Arc::new(std::sync::Mutex::new(Vec::<u8>::new()));
+        let writer = Buffer(Arc::clone(&buffer));
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(move || writer.clone())
+            .with_ansi(false)
+            .with_max_level(tracing_subscriber::filter::LevelFilter::TRACE)
+            .with_span_events(
+                tracing_subscriber::fmt::format::FmtSpan::NEW
+                    | tracing_subscriber::fmt::format::FmtSpan::CLOSE,
+            )
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("echo", "c1", "{}"),
+            text_response("done"),
+        ]));
+        let runtime = build_runtime(base_config(), provider, vec![echo_tool()]);
+        runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+
+        let output = String::from_utf8(buffer.lock().expect("锁未被毒化").clone()).expect("UTF-8");
+        for expected in ["mycelium.run", "mycelium.step", "mycelium.tool"] {
+            assert!(output.contains(expected), "缺少 span {expected}：{output}");
+        }
+        for field in ["run_id", "provider", "model", "step", "tool", "call_id"] {
+            assert!(output.contains(field), "缺少 span 字段 {field}：{output}");
         }
     }
 

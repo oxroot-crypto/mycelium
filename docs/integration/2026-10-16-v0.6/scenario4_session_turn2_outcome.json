@@ -1,0 +1,23 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "我们需要回答用户。用户问“我刚才让你记住的数字是多少？只回答数字。” 之前对话：用户说请记住一个数字：7。回答「记住了」即可。助手回答记住了。所以数字是7。只回答数字。必须只输出7。注意不能有多余。最终。",
+          "type": "thinking"
+        },
+        {
+          "text": "7",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 1,
+  "usage": {
+    "input_tokens": 68,
+    "output_tokens": 63,
+    "reasoning_tokens": 61
+  }
+}

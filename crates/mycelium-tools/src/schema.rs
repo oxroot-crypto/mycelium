@@ -1,8 +1,15 @@
 //! 工具入参校验（JSON Schema 子集）。
 //!
-//! 支持的关键字：`type`（字符串或联合类型数组）、`properties`、`required`、
-//! `additionalProperties: false`、`items`、`enum`；**未识别的关键字被忽略**
-//! （子集语义，见 `docs/spec/core.md` §2.13）。
+//! 支持的关键字：
+//! - 类型与取值：`type`（字符串或联合类型数组）、`enum`、`const`；
+//! - 组合：`allOf` / `anyOf` / `oneOf`；
+//! - 对象：`properties`、`required`、`additionalProperties: false`；
+//! - 数组：`items`、`minItems`、`maxItems`、`uniqueItems`；
+//! - 数值：`minimum` / `maximum`（闭边界）、`exclusiveMinimum` / `exclusiveMaximum`（开边界，draft-07 数值语义）；
+//! - 字符串：`minLength` / `maxLength`（按 Unicode 标量计数）。
+//!
+//! **未识别的关键字被忽略**（子集语义，如 `pattern` / `multipleOf` / `format`；
+//! 见 `docs/spec/core.md` §2.13 / §2.27）。
 //!
 //! 失败路径使用 JSONPath 风格：`$`、`$.a`、`$[0]`、`$.a[0].b`。
 
@@ -83,6 +90,98 @@ fn validate_at(schema: &Value, value: &Value, path: &str) -> Result<(), SchemaVi
         ));
     }
 
+    if let Some(expected) = schema.get("const")
+        && value != expected
+    {
+        return Err(SchemaViolation::new(
+            path,
+            format!("取值必须恒等于 {expected}"),
+        ));
+    }
+
+    // 组合关键字（FC-POST-210）。
+    if let Some(Value::Array(subschemas)) = schema.get("allOf") {
+        for subschema in subschemas {
+            validate_at(subschema, value, path)?;
+        }
+    }
+    if let Some(Value::Array(subschemas)) = schema.get("anyOf")
+        && !subschemas
+            .iter()
+            .any(|subschema| validate_at(subschema, value, path).is_ok())
+    {
+        return Err(SchemaViolation::new(path, "anyOf：没有任何分支通过校验"));
+    }
+    if let Some(Value::Array(subschemas)) = schema.get("oneOf") {
+        let matches = subschemas
+            .iter()
+            .filter(|subschema| validate_at(subschema, value, path).is_ok())
+            .count();
+        if matches != 1 {
+            return Err(SchemaViolation::new(
+                path,
+                format!("oneOf：必须恰好一个分支通过，实际 {matches} 个"),
+            ));
+        }
+    }
+
+    // 数值边界（FC-POST-211；draft-07：exclusive* 为数值语义）。
+    if let Some(number) = value.as_f64() {
+        if let Some(minimum) = schema.get("minimum").and_then(Value::as_f64)
+            && number < minimum
+        {
+            return Err(SchemaViolation::new(
+                path,
+                format!("小于最小值 {minimum}（实际 {number}）"),
+            ));
+        }
+        if let Some(maximum) = schema.get("maximum").and_then(Value::as_f64)
+            && number > maximum
+        {
+            return Err(SchemaViolation::new(
+                path,
+                format!("大于最大值 {maximum}（实际 {number}）"),
+            ));
+        }
+        if let Some(bound) = schema.get("exclusiveMinimum").and_then(Value::as_f64)
+            && number <= bound
+        {
+            return Err(SchemaViolation::new(
+                path,
+                format!("必须严格大于 {bound}（实际 {number}）"),
+            ));
+        }
+        if let Some(bound) = schema.get("exclusiveMaximum").and_then(Value::as_f64)
+            && number >= bound
+        {
+            return Err(SchemaViolation::new(
+                path,
+                format!("必须严格小于 {bound}（实际 {number}）"),
+            ));
+        }
+    }
+
+    // 字符串长度（FC-POST-211；按字符计数）。
+    if let Some(text) = value.as_str() {
+        let len = u64::try_from(text.chars().count()).unwrap_or(u64::MAX);
+        if let Some(min_length) = schema.get("minLength").and_then(Value::as_u64)
+            && len < min_length
+        {
+            return Err(SchemaViolation::new(
+                path,
+                format!("长度 {len} 小于 minLength {min_length}"),
+            ));
+        }
+        if let Some(max_length) = schema.get("maxLength").and_then(Value::as_u64)
+            && len > max_length
+        {
+            return Err(SchemaViolation::new(
+                path,
+                format!("长度 {len} 超过 maxLength {max_length}"),
+            ));
+        }
+    }
+
     match value {
         Value::Object(object) => {
             if let Some(Value::Array(required)) = schema.get("required") {
@@ -113,6 +212,37 @@ fn validate_at(schema: &Value, value: &Value, path: &str) -> Result<(), SchemaVi
             if let Some(item_schema) = schema.get("items") {
                 for (index, item) in items.iter().enumerate() {
                     validate_at(item_schema, item, &format!("{path}[{index}]"))?;
+                }
+            }
+            // 数组约束（FC-POST-212）。
+            let len = u64::try_from(items.len()).unwrap_or(u64::MAX);
+            if let Some(min_items) = schema.get("minItems").and_then(Value::as_u64)
+                && len < min_items
+            {
+                return Err(SchemaViolation::new(
+                    path,
+                    format!("数组元素 {len} 少于 minItems {min_items}"),
+                ));
+            }
+            if let Some(max_items) = schema.get("maxItems").and_then(Value::as_u64)
+                && len > max_items
+            {
+                return Err(SchemaViolation::new(
+                    path,
+                    format!("数组元素 {len} 超过 maxItems {max_items}"),
+                ));
+            }
+            if schema.get("uniqueItems") == Some(&Value::Bool(true)) {
+                // O(n²) 两两比较：工具入参数组规模小，取舍见代码评审记录。
+                for left in 0..items.len() {
+                    for right in (left + 1)..items.len() {
+                        if items[left] == items[right] {
+                            return Err(SchemaViolation::new(
+                                path,
+                                format!("数组元素重复（下标 {left} 与 {right}）"),
+                            ));
+                        }
+                    }
                 }
             }
         }
@@ -300,14 +430,110 @@ mod tests {
 
     #[test]
     fn ignores_unknown_keywords() {
-        // minimum / pattern 等未识别关键字按子集语义忽略（不误报）
+        // pattern / multipleOf / format 等未识别关键字按子集语义忽略（不误报）
         let schema = json!({
             "type": "object",
             "properties": {
                 "path": { "type": "string", "pattern": "^[a-z]+$" },
-                "lines": { "type": "integer", "minimum": 5 }
+                "lines": { "type": "integer", "multipleOf": 5 }
             }
         });
         assert!(validate_arguments(&schema, &json!({ "path": "UPPER", "lines": 1 })).is_ok());
+    }
+
+    #[test]
+    fn all_of_requires_every_branch() {
+        let schema = json!({
+            "allOf": [ { "type": "integer" }, { "minimum": 10 } ]
+        });
+        assert!(validate_arguments(&schema, &json!(10)).is_ok());
+        assert!(validate_arguments(&schema, &json!(9)).is_err());
+        assert!(validate_arguments(&schema, &json!("x")).is_err());
+    }
+
+    #[test]
+    fn any_of_requires_one_branch() {
+        let schema = json!({
+            "anyOf": [ { "type": "string" }, { "type": "integer", "minimum": 100 } ]
+        });
+        assert!(validate_arguments(&schema, &json!("s")).is_ok());
+        assert!(validate_arguments(&schema, &json!(150)).is_ok());
+        let violation = validate_arguments(&schema, &json!(5)).unwrap_err();
+        assert!(violation.message.contains("anyOf"));
+    }
+
+    #[test]
+    fn one_of_requires_exactly_one_branch() {
+        let schema = json!({
+            "oneOf": [
+                { "type": "integer", "maximum": 10 },
+                { "type": "integer", "minimum": 10 }
+            ]
+        });
+        assert!(validate_arguments(&schema, &json!(5)).is_ok());
+        assert!(validate_arguments(&schema, &json!(15)).is_ok());
+        // 同时命中两个分支
+        let violation = validate_arguments(&schema, &json!(10)).unwrap_err();
+        assert!(violation.message.contains("恰好一个"));
+        // 零个分支命中
+        let violation = validate_arguments(&schema, &json!("s")).unwrap_err();
+        assert!(violation.message.contains("实际 0"));
+    }
+
+    #[test]
+    fn numeric_bounds_are_inclusive() {
+        let schema = json!({ "type": "integer", "minimum": 1, "maximum": 3 });
+        assert!(validate_arguments(&schema, &json!(0)).is_err());
+        assert!(validate_arguments(&schema, &json!(1)).is_ok());
+        assert!(validate_arguments(&schema, &json!(3)).is_ok());
+        assert!(validate_arguments(&schema, &json!(4)).is_err());
+    }
+
+    #[test]
+    fn numeric_bounds_exclusive() {
+        let schema = json!({ "type": "number", "exclusiveMinimum": 1.5, "exclusiveMaximum": 3.0 });
+        assert!(validate_arguments(&schema, &json!(1.5)).is_err());
+        assert!(validate_arguments(&schema, &json!(2.0)).is_ok());
+        assert!(validate_arguments(&schema, &json!(3.0)).is_err());
+    }
+
+    #[test]
+    fn string_length_counts_characters() {
+        let schema = json!({ "type": "string", "minLength": 2, "maxLength": 3 });
+        assert!(validate_arguments(&schema, &json!("你")).is_err()); // 1 字符（3 字节）
+        assert!(validate_arguments(&schema, &json!("你好")).is_ok()); // 2 字符（6 字节）
+        assert!(validate_arguments(&schema, &json!("你好呀")).is_ok());
+        assert!(validate_arguments(&schema, &json!("你好呀啊")).is_err());
+    }
+
+    #[test]
+    fn array_item_counts_are_enforced() {
+        let schema = json!({
+            "type": "array",
+            "items": { "type": "integer" },
+            "minItems": 1,
+            "maxItems": 2
+        });
+        assert!(validate_arguments(&schema, &json!([])).is_err());
+        assert!(validate_arguments(&schema, &json!([1])).is_ok());
+        assert!(validate_arguments(&schema, &json!([1, 2])).is_ok());
+        assert!(validate_arguments(&schema, &json!([1, 2, 3])).is_err());
+        assert!(validate_arguments(&schema, &json!(["x"])).is_err());
+    }
+
+    #[test]
+    fn unique_items_rejects_duplicates() {
+        let schema = json!({ "type": "array", "uniqueItems": true });
+        assert!(validate_arguments(&schema, &json!([1, 2, 3])).is_ok());
+        let violation = validate_arguments(&schema, &json!([1, 2, 1])).unwrap_err();
+        assert!(violation.message.contains("下标 0 与 2"));
+    }
+
+    #[test]
+    fn const_requires_exact_match() {
+        let schema = json!({ "const": "fast" });
+        assert!(validate_arguments(&schema, &json!("fast")).is_ok());
+        let violation = validate_arguments(&schema, &json!("slow")).unwrap_err();
+        assert!(violation.message.contains("fast"));
     }
 }

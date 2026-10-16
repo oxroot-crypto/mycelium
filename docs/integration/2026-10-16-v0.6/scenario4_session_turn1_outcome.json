@@ -1,0 +1,23 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "我们需要回答用户。用户说“请记住一个数字：7。回答「记住了」即可。” 我们需要简洁，只回答“记住了”。但需要确保没有额外内容。直接回复。",
+          "type": "thinking"
+        },
+        {
+          "text": "记住了",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 1,
+  "usage": {
+    "input_tokens": 53,
+    "output_tokens": 41,
+    "reasoning_tokens": 39
+  }
+}

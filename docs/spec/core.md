@@ -3,7 +3,7 @@
 > 本文件是 mycelium 形式化契约的**单一真实来源（Single Source of Truth）**。
 > 任何行为变更必须遵循：**先改本契约 → 再改测试 → 再改实现 → 契约漂移审计**（见 §5）。
 >
-> - 版本：v0.5.0（2026-10-16）
+> - 版本：v0.6.0（2026-10-16）
 > - 覆盖范围：`mycelium-core`、`mycelium-model`、`mycelium-tools`、`mycelium-runtime`、`mycelium-macros`、`mycelium-mcp`、`mycelium-provider-openai`、`mycelium`（门面）
 > - 状态列取值：`Pending`（待验证）/ `Passed`（验证通过）/ `Planned`（未实现，不计入本次覆盖率）
 
@@ -12,8 +12,8 @@
 - 本仓库交付物为**对外契约类 SDK**（公共 API 即契约）。依据 FSVDD §1.1，将以下推荐项升级为**强制**：
   测试与约束 1:1 对齐（100% 追溯）、状态机全路径遍历、基于属性的测试（PBT）、证伪抽查。
 - 不适用豁免（FSVDD §1.2）：本仓库承载对外接口与状态流转。
-- v0.5 覆盖：多轮会话（`Session` 持久化 SPI + 文件/内存存储 + `run_session`）与
-  子 Agent 编排（agent-as-tool）；其余未实现部分列出 §4「计划约束」，不计入本次交付覆盖率。
+- v0.6 覆盖：长期记忆 SPI（`Memory` + 进程内实现）、JSON Schema 子集扩充、tracing 结构化 span；
+  其余未实现部分列出 §4「计划约束」，不计入本次交付覆盖率。
 
 ## 1. 术语与记法
 
@@ -296,6 +296,32 @@
 | `FC-ERR-072` | 异常处理 | 取消传播：父运行取消令牌注入子运行 `RunInput.cancel`（父取消可打断子运行的在途请求） | `engine::tests::agent_tool_propagates_cancel_to_child` | Passed |
 | `FC-ERR-073` | 异常处理 | 入参缺 `prompt`（或非字符串）→ `ToolError::InvalidArguments` | `agent_tool::tests::missing_prompt_is_rejected` | Passed |
 
+### 2.26 长期记忆（`mycelium-runtime::memory`）
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-200` | 后置约束 | `Memory` SPI：`remember` 追加并返回含生成 `id` 的记录；`recall` 按「相关度降序 → 时间倒序 → id」返回至多 `limit` 条（无匹配时即最近优先）；`forget` 幂等 | `memory::tests::recall_ranks_by_keyword_then_recency`、`memory::tests::recall_respects_limit`、`memory::tests::forget_is_idempotent` | Passed |
+| `FC-POST-201` | 后置约束 | 相关度计算确定性：同一存储上重复 `recall` 返回完全相同的顺序；空/纯符号查询等价于「最近优先」 | `memory::tests::recall_is_deterministic`、`memory::tests::empty_query_returns_recent_first` | Passed |
+| `FC-POST-202` | 后置约束 | `MemoryRecord` JSON 往返恒等；`MemoryId` 为 UUID v7（时间有序） | `memory::tests::record_json_roundtrip` | Passed |
+
+### 2.27 JSON Schema 子集扩充（`mycelium-tools::schema`）
+
+新增关键字：`const`、`allOf` / `anyOf` / `oneOf`、`minimum` / `maximum` / `exclusiveMinimum` /
+`exclusiveMaximum`（数值语义，draft-07）、`minLength` / `maxLength`（按 Unicode 标量计数）、
+`minItems` / `maxItems` / `uniqueItems`；未识别关键字仍按子集语义忽略。
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-210` | 后置约束 | 组合关键字语义：`allOf` 全部分支通过；`anyOf` 至少一个分支通过（否则违规）；`oneOf` 恰好一个分支通过（0 或 ≥2 均违规，报实际匹配数） | `schema::tests::all_of_requires_every_branch`、`schema::tests::any_of_requires_one_branch`、`schema::tests::one_of_requires_exactly_one_branch` | Passed |
+| `FC-POST-211` | 后置约束 | 数值边界（含边界点）：`minimum` / `maximum` 为闭边界、`exclusiveMinimum` / `exclusiveMaximum` 为开边界；字符串长度按**字符**计数（多字节字符不按字节） | `schema::tests::numeric_bounds_are_inclusive`、`schema::tests::numeric_bounds_exclusive`、`schema::tests::string_length_counts_characters` | Passed |
+| `FC-POST-212` | 后置约束 | 数组约束：`minItems` / `maxItems` 按元素数；`uniqueItems: true` 拒绝重复元素（报重复下标）；`const` 要求精确相等 | `schema::tests::array_item_counts_are_enforced`、`schema::tests::unique_items_rejects_duplicates`、`schema::tests::const_requires_exact_match` | Passed |
+
+### 2.28 tracing 结构化 span（`mycelium-runtime::engine`）
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-220` | 后置约束 | 运行期发出结构化 span 并携带定位字段：`mycelium.run`（`run_id` / `provider` / `model`）、`mycelium.step`（`step`）、`mycelium.tool`（`tool` / `call_id`）；span 生命周期与实际作用域一致（NEW/CLOSE 可观测） | `engine::tests::run_emits_structured_spans` | Passed |
+
 ## 3. 属性测试（PBT，对应 FSVDD §4.2.1）
 
 | 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
@@ -306,14 +332,13 @@
 | `FC-INV-013` | 不变量（属性） | 对任意文本 `t`：`Message::user_text(t)` serde 往返恒等 | `properties::prop_message_roundtrip` | Passed |
 | `FC-INV-030` | 不变量（属性） | 对任意文本增量序列 `v`：装配结果 = 单 `Text` 块且文本等于 `v` 的顺序拼接 | `assembler::tests::prop_text_deltas_concatenate` | Passed |
 
-## 4. 计划约束（v0.5+ 未实现；不计入本次覆盖率）
+## 4. 计划约束（v0.6+ 未实现；不计入本次覆盖率）
 
 以下条目在实现对应功能时**必须**移入 §2 并补齐测试映射：
 
-- 长期记忆接口（向量检索等由生态实现）。
-- 完整 JSON Schema 支持（超出 §2.13 子集的关键字）。
-- tracing 结构化 span（当前为事件级埋点 + 原始交互日志）。
 - MCP：资源 / 提示模板、采样回调（server → client 请求）、HTTP 传输。
+- JSON Schema 剩余关键字（`pattern` / `multipleOf` / `format` 等，见 §2.27 说明）。
+- 向量检索等外部记忆后端（SPI 已在 §2.26 定义，由生态实现）。
 - 序列化兼容：核心类型新增字段需走非破坏性变更评审；枚举新增变体视为破坏性变更。
 - 工程化：`cargo-mutants` 自动化变异测试、`cargo-deny` 依赖审计、文档站点。
 
@@ -354,10 +379,36 @@ flowchart LR
 | v0.4.0 | 2026-10-16 | 新增多 Provider 降级 `FallbackProvider`（`mycelium-model`） | 新增 |
 | v0.5.0 | 2026-10-16 | 新增多轮会话契约（§2.24）：`Session` serde、`SessionStore` SPI、`InMemorySessionStore` / `FileSessionStore`、`AgentRuntime::run_session` | 新增（非破坏性） |
 | v0.5.0 | 2026-10-16 | 新增子 Agent 编排契约（§2.25）：`AgentTool`（agent-as-tool，取消传播 + 子运行独立预算 / 事件流） | 新增 |
+| v0.6.0 | 2026-10-16 | 新增长期记忆契约（§2.26）：`Memory` SPI、`MemoryRecord` / `MemoryId`、`InMemoryMemory`（关键字相关度） | 新增（非破坏性） |
+| v0.6.0 | 2026-10-16 | JSON Schema 子集扩充（§2.27）：`const` / `allOf` / `anyOf` / `oneOf` / 数值边界 / 字符串长度 / 数组约束 | 新增（校验更严格，属行为增强） |
+| v0.6.0 | 2026-10-16 | tracing 结构化 span（§2.28）：`mycelium.run` / `mycelium.step` / `mycelium.tool` | 新增 |
 
 ## 6. 验证报告（FC-Verification Report）
 
-### 6.1 v0.5（当前）
+### 6.1 v0.6（当前）
+
+- 验证日期：2026-10-16
+- 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
+- 执行命令与结果：
+  - `cargo test --workspace --all-features`：**205 个单元 / 集成测试 + 9 个 doctest** 全部通过；
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`：零告警；
+  - `cargo fmt --all --check`：通过；
+  - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features`：通过。
+- **真实模型联调**（五场景全通过；原始日志 `docs/integration/2026-10-16-v0.6/`）：
+  - `transcript.log` 中可直接观察嵌套结构化 span：
+    `mycelium.run{run_id=… provider="openai" model=deepseek-flash}:mycelium.step{step=1}: …`。
+- 追溯覆盖率：§2 与 §3 共 **148 条**约束（v0.1 43 + v0.2 45 + v0.3 27 + v0.4 16 + v0.5 10 + v0.6 7），
+  100% 映射到测试且全部 `Passed`（见状态列）。
+- 证伪抽查（Falsification Check，FSVDD §4.2.4）：
+
+| # | 故意破坏的约束 | 预期变红测试 | 结果 |
+| :--- | :--- | :--- | :--- |
+| F21 | 记忆相关度失效（退化为纯时间序） | `memory::tests::recall_ranks_by_keyword_then_recency` | 变红 ✓（已还原） |
+| F22 | `minimum` 边界放宽 1 步 | `schema::tests::numeric_bounds_are_inclusive` | 变红 ✓（已还原） |
+| F23 | `oneOf` 允许多分支同时命中 | `schema::tests::one_of_requires_exactly_one_branch` | 变红 ✓（已还原） |
+| F24 | 工具 span 移除 `instrument` | `engine::tests::run_emits_structured_spans` | 变红 ✓（已还原） |
+
+### 6.2 v0.5（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -384,7 +435,7 @@ flowchart LR
 | F19 | 取消不传播到子运行 | `engine::tests::agent_tool_propagates_cancel_to_child` | 变红 ✓（已还原） |
 | F20 | `AgentTool` 缺 `prompt` 不再校验 | `agent_tool::tests::missing_prompt_is_rejected` | 变红 ✓（已还原） |
 
-### 6.2 v0.4（历史）
+### 6.3 v0.4（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -411,7 +462,7 @@ flowchart LR
 | F15 | 结构化工具结果降级为纯文本 | `engine::tests::structured_tool_result_is_fed_back_intact` | 变红 ✓（已还原） |
 | F16 | 降级判据反转（可重试不降级） | `fallback::tests::falls_back_on_retryable_error` | 变红 ✓（已还原） |
 
-### 6.3 v0.3（历史）
+### 6.4 v0.3（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -445,7 +496,7 @@ flowchart LR
 > F9 首轮未变红暴露了原测试的弱点：它只校验 `call_id` 顺序，而 `call_id` 本身由调用顺序 zip 生成，
 > 内容错位无法被发现。已按 FSVDD 要求强化测试（校验 `call_id` 与 `content` 的对应关系）并复验通过。
 
-### 6.4 v0.2（历史）
+### 6.5 v0.2（历史）
 
 - 验证日期：2026-10-14
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -466,7 +517,7 @@ flowchart LR
 | F7 | 工具错误改为直接终止（不回灌） | `engine::tests::failing_tool_error_is_fed_back` | 变红 ✓（已还原） |
 | F8 | 429 限流映射改为普通 Api 错误 | `provider::tests::maps_error_status_rules` | 变红 ✓（已还原） |
 
-### 6.5 v0.1（历史）
+### 6.6 v0.1（历史）
 
 - 验证日期：2026-10-14；结果：55 个单元 / 属性测试 + 4 个 doctest 全部通过；clippy / fmt / doc 零告警。
 - 证伪抽查 F1 ~ F4（工具名长度上限、重名注册覆盖、转移边删除、饱和加法改回绕）全部按预期变红后还原。

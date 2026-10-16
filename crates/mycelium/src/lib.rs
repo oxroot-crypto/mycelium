@@ -29,8 +29,9 @@ pub mod prelude {
     };
     pub use crate::runtime::{
         AgentEventStream, AgentRun, AgentRuntime, AgentRuntimeBuilder, AgentTool, BuildError,
-        FileSessionStore, InMemorySessionStore, RunContext, RunFuture, RunHooks, RunInput,
-        RunOutcome, Session, SessionStore, SessionStoreError,
+        FileSessionStore, InMemoryMemory, InMemorySessionStore, Memory, MemoryError, MemoryId,
+        MemoryRecord, RunContext, RunFuture, RunHooks, RunInput, RunOutcome, Session, SessionStore,
+        SessionStoreError,
     };
     pub use crate::tools::{
         AllowAll, AllowList, DenyList, PolicyDecision, RegistryError, SchemaViolation, Tool,

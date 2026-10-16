@@ -1,0 +1,78 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "The user wants me to read a file. Let me first check allowed directories, then read the file.",
+          "type": "thinking"
+        },
+        {
+          "id": "call_00_fwnb3PTLC0mnXL8rT39v6576",
+          "input": {
+            "path": "/tmp/mycelium-mcp-demo/hello.txt"
+          },
+          "name": "read_text_file",
+          "type": "tool_use"
+        },
+        {
+          "id": "call_01_fMigkMPcGGEdC5w2gnYP0191",
+          "input": {},
+          "name": "list_allowed_directories",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "mycelium × MCP：你好，世界！\n",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_call_id": "call_00_fwnb3PTLC0mnXL8rT39v6576",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "Allowed directories:\n/tmp/mycelium-mcp-demo",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_call_id": "call_01_fMigkMPcGGEdC5w2gnYP0191",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "text": "The file content is: mycelium × MCP：你好，世界！\n\nLet me report it exactly.",
+          "type": "thinking"
+        },
+        {
+          "text": "文件 `/tmp/mycelium-mcp-demo/hello.txt` 的内容原样如下：\n\n```\nmycelium × MCP：你好，世界！\n```\n\n也就是一行文字：**mycelium × MCP：你好，世界！**（结尾带一个感叹号，无其他多余内容）。",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 2,
+  "usage": {
+    "input_tokens": 4692,
+    "output_tokens": 172,
+    "reasoning_tokens": 43
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "The user wants me to call ask_child and relay its answer.",
+          "type": "thinking"
+        },
+        {
+          "id": "call_00_utKnYqXfYaf2LhSivVSp7754",
+          "input": {
+            "prompt": "1+1 等于几？只回复数字"
+          },
+          "name": "ask_child",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "2",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_call_id": "call_00_utKnYqXfYaf2LhSivVSp7754",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "text": "The child answered \"2\". Relay it.",
+          "type": "thinking"
+        },
+        {
+          "text": "子 Agent 的回答是：**2**",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 2,
+  "usage": {
+    "input_tokens": 746,
+    "output_tokens": 80,
+    "reasoning_tokens": 22
+  }
+}

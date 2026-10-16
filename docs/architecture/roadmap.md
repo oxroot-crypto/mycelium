@@ -2,7 +2,7 @@
 
 > 原则：每一档必须保持 `cargo build / test / clippy / fmt` 全绿，且 FC-Matrix 与测试同步演进。
 
-## 进度快照（截至 v0.4.0）
+## 进度快照（截至 v0.6.0）
 
 | 版本 | 发布日 | 提交（git tag） | 主题 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -11,14 +11,15 @@
 | v0.3.0 | 2026-10-16 | `d65cc83`（`v0.3.0`） | 策略与生态：并发工具、权限策略、`#[tool]` 宏、MCP、思考过程 | ✅ 已发布 |
 | v0.4.0 | 2026-10-16 | `e28205b`（`v0.4.0`） | 结构化工具结果、异步钩子、重试与降级、时长预算、MSRV CI | ✅ 已发布 |
 | v0.5.0 | 2026-10-16 | `3fcd1c2`（`v0.5.0`） | 多轮会话持久化（`SessionStore` + `run_session`）、子 Agent 编排（`AgentTool`） | ✅ 已发布 |
-| v0.5.x | — | — | 长期记忆、MCP 资源/HTTP、完整 JSON Schema、tracing span | ⏳ 规划中 |
+| v0.6.0 | 2026-10-16 | `PLACEHOLDER`（`v0.6.0`） | 长期记忆 SPI、JSON Schema 扩充、tracing 结构化 span | ✅ 已发布 |
+| v0.6.x | — | — | MCP 资源/提示模板/HTTP、剩余 Schema 关键字、外部记忆后端 | ⏳ 规划中 |
 | v1.0.0 | — | — | API 冻结、文档与发布流程 | ⏳ 规划中 |
 
-工程数据（截至 v0.4.0）：
+工程数据（截至 v0.6.0）：
 
-- FC 约束 **141 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10）；
-- **198 项测试**（188 单元 / 集成 + 10 doctest）全绿；clippy / fmt / doc 零告警；
-- 真实联调原始日志：`docs/integration/`（v0.3 / v0.4 / v0.5 三次完整记录，DeepSeek V4.1-Flash × MCP）；
+- FC 约束 **148 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10 / v0.6 7）；
+- **214 项测试**（205 单元 / 集成 + 9 doctest）全绿；clippy / fmt / doc 零告警；
+- 真实联调原始日志：`docs/integration/`（v0.3 / v0.4 / v0.5 / v0.6 四次完整记录，DeepSeek V4.1-Flash × MCP）；
 - 契约与变更记录：`docs/spec/core.md`（RFC：`docs/architecture/rfc/`）。
 
 ---
@@ -81,12 +82,21 @@
 - [x] 子 Agent 编排（`AgentTool`）：agent-as-tool，取消传播、子运行独立预算与事件流、错误回灌
 - [x] 真实联调场景 4/5（会话持久化恢复 / 子 Agent；日志 `docs/integration/2026-10-16-v0.5/`）
 
-### v0.5.x — 规划中（建议优先级从高到低）
+## v0.6 记忆与可观测性 — v0.6.0 已完成（2026-10-16）
+
+- [x] 长期记忆 SPI：`Memory` trait + `MemoryRecord` / `MemoryId`（UUID v7）+ `InMemoryMemory`
+  （关键字相关度 → 时间倒序 → id 的确定性排序；向量检索由生态实现）
+- [x] JSON Schema 子集扩充：`const` / `allOf` / `anyOf` / `oneOf` / 数值边界（含 exclusive）/
+  字符串长度（按字符）/ 数组约束（`minItems` / `maxItems` / `uniqueItems`）
+- [x] tracing 结构化 span：`mycelium.run`（run_id/provider/model）、`mycelium.step`（step）、
+  `mycelium.tool`（tool/call_id）；联调日志可直接观察嵌套 span
+- [x] 真实联调重跑（五场景，日志 `docs/integration/2026-10-16-v0.6/`）
+
+### v0.6.x — 规划中（建议优先级从高到低）
 
 - [ ] MCP 资源 / 提示模板 / HTTP 传输（从 v0.3 顺延）
-- [ ] 长期记忆接口（向量检索等由生态实现），与 `Session` 持久化协同
-- [ ] 完整 JSON Schema 支持（超出 §2.13 子集的关键字）
-- [ ] tracing 结构化 span（当前为事件级埋点 + 原始交互日志）
+- [ ] JSON Schema 剩余关键字（`pattern` / `multipleOf` / `format` 等）
+- [ ] 外部记忆后端（向量检索 / 数据库，生态实现；SPI 已就绪）
 
 ## v1.0 API 稳定 — 规划中
 
