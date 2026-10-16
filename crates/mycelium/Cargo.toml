@@ -3,6 +3,7 @@ name = "mycelium"
 description = "mycelium agent SDK 门面：统一 re-export、prelude 与端到端示例"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true

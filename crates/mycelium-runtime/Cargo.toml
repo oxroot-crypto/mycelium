@@ -3,6 +3,7 @@ name = "mycelium-runtime"
 description = "mycelium 执行引擎：AgentRuntime 装配、会话与运行钩子（执行循环自 v0.2 起实现）"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true

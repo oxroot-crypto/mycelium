@@ -111,16 +111,22 @@
 - [ ] JSON Schema 剩余关键字（`pattern` / `multipleOf` / `format` 等）
 - [ ] 外部记忆后端（向量检索 / 数据库，生态实现；SPI 已就绪）
 
-## v1.0 API 稳定 — 规划中
+## v1.0 API 稳定 — 准备中（2026-10-16 完成第一批）
 
-- [ ] API 冻结流程：连续两个小版本无破坏性变更后进入冻结评审；此后破坏性变更走 RFC + 弃用周期
-- [ ] 文档补全（含 v0.1 → v1.0 迁移指南）、示例集、性能基准（criterion）
-- [ ] license 决策与发布流程（crates.io 首个发布）
-- [ ] 发布检查单（SemVer 审计、CHANGELOG 规范化、docs.rs 元数据）
+- [x] license 决策与许可证文件：**MIT OR Apache-2.0**（`LICENSE-MIT` / `LICENSE-APACHE` / `Cargo.toml`）
+- [x] 依赖审计接入 CI：`cargo-deny` + `deny.toml`（安全公告 / 许可 / 来源 / 重复版本）
+- [x] 变异测试接入：`cargo-mutants` + `mutants.toml`（每周定时工作流 `.github/workflows/mutants.yml`）
+- [x] 公共 API 冻结评审文档：`docs/architecture/api-freeze.md`（冻结面 / 不冻结面 / 变更政策 / 检查单）
+- [x] 发布流程与检查单：`docs/architecture/release-process.md`；版本变更记录 `CHANGELOG.md`
+- [ ] API 冻结正式生效（连续两个小版本无破坏性变更后评审）
+- [ ] `cargo-public-api` / `cargo-semver-checks` 作为 CI 门禁
+- [ ] crates.io 首发（凭据与元数据就绪后，按发布顺序）
+- [ ] 迁移指南（v0.1 → v1.0）、示例集、性能基准（criterion）
 
 ## 工程化 backlog
 
 - [x] MSRV CI job（1.97.0）—— 已并入 v0.4.0
-- [ ] `cargo-mutants` 接入 CI（自动化变异测试，替代手工证伪抽查）
-- [ ] `cargo-deny`（依赖许可证与安全公告审计）
+- [x] `cargo-mutants` 接入 CI —— 每周定时工作流（`.github/workflows/mutants.yml`，配置 `mutants.toml`）
+- [x] `cargo-deny` 依赖审计 —— CI 门禁（`deny.toml`）
+- [ ] `cargo-public-api` / `cargo-semver-checks` 作为 API 变更门禁
 - [ ] 文档站点（mdBook / docs.rs 徽章）

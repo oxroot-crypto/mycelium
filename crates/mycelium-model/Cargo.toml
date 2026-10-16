@@ -3,6 +3,7 @@ name = "mycelium-model"
 description = "mycelium 模型提供方抽象（SPI）：ModelProvider trait、请求、流式增量与能力声明"
 version.workspace = true
 edition.workspace = true
+license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
 publish.workspace = true

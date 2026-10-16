@@ -41,3 +41,12 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - name: Check (MSRV)
         run: cargo check --workspace --all-features
+
+  deny:
+    name: cargo-deny（依赖审计）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories bans licenses sources

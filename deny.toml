@@ -1,0 +1,38 @@
+# cargo-deny 配置（依赖审计）。
+# 本地运行：cargo deny check（安装：cargo install cargo-deny 或使用预编译包）
+# CI：见 .github/workflows/ci.yml 的 deny job。
+
+[advisories]
+version = 2
+yanked = "deny"
+ignore = []
+
+[licenses]
+version = 2
+# 与项目「MIT OR Apache-2.0」双许可兼容的依赖许可证允许列表。
+# 新增依赖导致检查失败时：先评估许可证兼容性，再把 SPDX 标识加入本列表（禁止使用 `allow-osi-approved` 之类的宽泛兜底）。
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    # 证书数据许可（webpki-root-certs，经 rustls-platform-verifier 引入；数据类宽松许可）
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "Unicode-3.0",
+    "Zlib",
+    "MPL-2.0",
+    "OpenSSL",
+]
+confidence-threshold = 0.9
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

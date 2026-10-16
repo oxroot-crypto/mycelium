@@ -140,6 +140,9 @@ cargo run -p mycelium-provider-openai --example deepseek
 - [`docs/spec/core.md`](docs/spec/core.md) —— 形式化约束矩阵（FC-Matrix，单一真实来源）
 - [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md) —— 路线图
 - [`docs/integration/`](docs/integration/) —— 真实联调原始交互日志（DeepSeek × MCP，可追溯 / 可重放）
+- [`CHANGELOG.md`](CHANGELOG.md) —— 版本变更记录（破坏性变更标注 **BREAKING**）
+- [`docs/architecture/api-freeze.md`](docs/architecture/api-freeze.md) —— 公共 API 冻结评审与变更政策
+- [`docs/architecture/release-process.md`](docs/architecture/release-process.md) —— 发布流程与检查单
 
 ## 开发
 
@@ -148,6 +151,7 @@ cargo build --workspace
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all --check
+cargo deny check        # 依赖审计（安全公告 / 许可 / 来源）
 ```
 
 - MSRV：Rust 1.97（`rust-version`，已在 stable 1.97.1 验证）。
@@ -155,4 +159,7 @@ cargo fmt --all --check
 
 ## 许可证
 
-待定（发布前决策；Rust 生态惯例为 `MIT OR Apache-2.0`）。
+采用 **MIT OR Apache-2.0** 双许可（任选其一）：
+
+- [LICENSE-MIT](LICENSE-MIT)
+- [LICENSE-APACHE](LICENSE-APACHE)

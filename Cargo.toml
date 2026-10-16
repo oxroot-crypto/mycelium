@@ -16,6 +16,7 @@ members = [
 [workspace.package]
 version = "0.7.0"
 edition = "2024"
+license = "MIT OR Apache-2.0"
 # MSRV：以已在 stable 1.97.1 完成验证的最低次版本声明，不得声称未验证的支持范围。
 rust-version = "1.97"
 repository = "https://github.com/oxroot-crypto/mycelium"
