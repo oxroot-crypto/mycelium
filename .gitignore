@@ -1,1 +1,5 @@
 /target
+# 本地密钥与配置：绝不入库
+.env
+.env.*
+!.env.example

@@ -3,6 +3,7 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use mycelium_core::{AgentError, StopReason, ToolError, ToolName, ToolSpec};
 use mycelium_model::{
@@ -131,6 +132,7 @@ pub(crate) fn text_response_with_usage(
         ModelDelta::Usage {
             input_tokens,
             output_tokens,
+            reasoning_tokens: None,
         },
         ModelDelta::Finished {
             stop_reason: StopReason::EndTurn,
@@ -171,6 +173,7 @@ pub(crate) fn tool_call_response_with_usage(
         ModelDelta::Usage {
             input_tokens,
             output_tokens,
+            reasoning_tokens: None,
         },
         ModelDelta::Finished {
             stop_reason: StopReason::ToolUse,
@@ -428,4 +431,92 @@ pub(crate) fn stub_tool(name: &str) -> Arc<dyn Tool> {
         )
         .expect("合法 schema"),
     })
+}
+
+/// 多个工具调用响应（index 按数组顺序从 0 递增）。
+pub(crate) fn tool_calls_response(calls: &[(&str, &str, &str)]) -> ScriptedResponse {
+    let mut deltas = Vec::new();
+    for (index, (tool, call_id, arguments)) in calls.iter().enumerate() {
+        deltas.push(ModelDelta::ToolCallDelta {
+            index: index as u32,
+            id: Some(mycelium_core::ToolCallId::new(*call_id).expect("合法 ID")),
+            name: Some(ToolName::new(*tool).expect("合法工具名")),
+            arguments_json_delta: Some((*arguments).to_owned()),
+        });
+    }
+    deltas.push(ModelDelta::Finished {
+        stop_reason: StopReason::ToolUse,
+    });
+    ScriptedResponse::Deltas(deltas)
+}
+
+/// 固定延迟后返回的确定性工具（并发 / 超时测试）。
+pub(crate) struct DelayTool {
+    name: ToolName,
+    delay: Duration,
+}
+
+#[async_trait]
+impl Tool for DelayTool {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::new(
+            self.name.clone(),
+            "延迟工具",
+            serde_json::json!({ "type": "object" }),
+        )
+        .expect("合法 schema")
+    }
+
+    async fn call(
+        &self,
+        _context: &ToolContext,
+        _arguments: serde_json::Value,
+    ) -> Result<ToolOutput, ToolError> {
+        tokio::time::sleep(self.delay).await;
+        Ok(ToolOutput::success(format!("{} 完成", self.name)))
+    }
+}
+
+/// 构造带延迟的确定性工具。
+pub(crate) fn delay_tool(name: &str, delay_ms: u64) -> Arc<dyn Tool> {
+    Arc::new(DelayTool {
+        name: ToolName::new(name).expect("合法工具名"),
+        delay: Duration::from_millis(delay_ms),
+    })
+}
+
+/// 一贯很慢的工具（工具超时测试）。
+pub(crate) fn slow_tool() -> Arc<dyn Tool> {
+    delay_tool("slow", 10_000)
+}
+
+/// 统计执行次数的回显工具（权限策略测试）。
+pub(crate) struct CountingEchoTool {
+    calls: Arc<AtomicUsize>,
+}
+
+#[async_trait]
+impl Tool for CountingEchoTool {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::new(
+            ToolName::new("echo").expect("合法工具名"),
+            "计数回显",
+            serde_json::json!({ "type": "object" }),
+        )
+        .expect("合法 schema")
+    }
+
+    async fn call(
+        &self,
+        _context: &ToolContext,
+        arguments: serde_json::Value,
+    ) -> Result<ToolOutput, ToolError> {
+        self.calls.fetch_add(1, Ordering::SeqCst);
+        Ok(ToolOutput::success(arguments.to_string()))
+    }
+}
+
+/// 构造带执行计数的回显工具。
+pub(crate) fn counting_echo_tool(calls: Arc<AtomicUsize>) -> Arc<dyn Tool> {
+    Arc::new(CountingEchoTool { calls })
 }

@@ -104,7 +104,8 @@ stateDiagram-v2
 5. 中途失败以 `Err(ModelError)` 结束，其后不得再产出项。
 
 装配结果（`ModelResponse`）：文本增量拼接为单个 `Text` 块（无文本且有工具调用时不产生文本块），
-工具调用按 `index` 升序转为 `ToolUse` 块，参数为空串时视为 `{}`。
+工具调用按 `index` 升序转为 `ToolUse` 块，参数为空串时视为 `{}`；思考（推理）增量拼接为单个
+`Thinking` 块并位于 `Text` 块之前（v0.3，见 FC-Matrix §2.20）。
 
 ## 7. 工具执行契约（v0.2 已实现 1 / 2 / 4 / 5；条目 3 见 roadmap v0.3）
 

@@ -196,9 +196,10 @@ fn build_runtime(base_url: &str, tools: Vec<Arc<dyn Tool>>) -> AgentRuntime {
 #[tokio::test]
 async fn e2e_text_completion() {
     let server = StubServer::start(vec![StubResponse::Sse(sse(&[
+        serde_json::json!({"choices":[{"delta":{"reasoning_content":"想一下"},"finish_reason":null}]}),
         serde_json::json!({"choices":[{"delta":{"content":"你好"},"finish_reason":null}]}),
         serde_json::json!({"choices":[{"delta":{},"finish_reason":"stop"}]}),
-        serde_json::json!({"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":2}}),
+        serde_json::json!({"choices":[],"usage":{"prompt_tokens":5,"completion_tokens":2,"completion_tokens_details":{"reasoning_tokens":1}}}),
     ]))])
     .await;
 
@@ -209,13 +210,18 @@ async fn e2e_text_completion() {
         .expect("运行应成功");
 
     assert_eq!(outcome.steps, 1);
-    assert_eq!(outcome.usage, Usage::new(5, 2));
+    assert_eq!(outcome.usage, Usage::new(5, 2).with_reasoning_tokens(1));
     assert_eq!(outcome.messages[0].role(), Role::Assistant);
     assert_eq!(
         outcome.messages[0].content(),
-        &[ContentBlock::Text {
-            text: "你好".to_owned()
-        }]
+        &[
+            ContentBlock::Thinking {
+                text: "想一下".to_owned()
+            },
+            ContentBlock::Text {
+                text: "你好".to_owned()
+            },
+        ]
     );
 
     let requests = server.requests();
@@ -300,7 +306,8 @@ async fn e2e_stream_satisfies_assembler_contract() {
             d,
             ModelDelta::Usage {
                 input_tokens: 1,
-                output_tokens: 1
+                output_tokens: 1,
+                reasoning_tokens: None,
             }
         )
     });

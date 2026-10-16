@@ -3,6 +3,11 @@
 //! 面向 OpenAI Chat Completions 协议及其兼容网关（Ollama / vLLM / LM Studio 等）。
 //! 通过环境变量或构建器配置；TLS 使用 rustls + ring（无需 cmake）。
 //!
+//! 已适配的扩展语义：
+//! - 思考链：`delta.reasoning_content` → `Thinking` 内容块（不回传历史）；
+//! - 思考控制：`ModelRequest.reasoning` → `thinking` / `reasoning_effort`；
+//! - 用量细化：`completion_tokens_details.reasoning_tokens` → `Usage.reasoning_tokens`。
+//!
 //! # Examples
 //! ```no_run
 //! use std::sync::Arc;

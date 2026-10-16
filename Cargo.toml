@@ -5,6 +5,8 @@ resolver = "3"
 members = [
     "crates/mycelium",
     "crates/mycelium-core",
+    "crates/mycelium-macros",
+    "crates/mycelium-mcp",
     "crates/mycelium-model",
     "crates/mycelium-provider-openai",
     "crates/mycelium-runtime",
@@ -12,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 # MSRV：以已在 stable 1.97.1 完成验证的最低次版本声明，不得声称未验证的支持范围。
 rust-version = "1.97"
@@ -20,11 +22,13 @@ repository = "https://github.com/oxroot-crypto/mycelium"
 publish = false
 
 [workspace.dependencies]
-mycelium-core = { path = "crates/mycelium-core", version = "0.2.0" }
-mycelium-model = { path = "crates/mycelium-model", version = "0.2.0" }
-mycelium-provider-openai = { path = "crates/mycelium-provider-openai", version = "0.2.0" }
-mycelium-runtime = { path = "crates/mycelium-runtime", version = "0.2.0" }
-mycelium-tools = { path = "crates/mycelium-tools", version = "0.2.0" }
+mycelium-core = { path = "crates/mycelium-core", version = "0.3.0" }
+mycelium-macros = { path = "crates/mycelium-macros", version = "0.3.0" }
+mycelium-mcp = { path = "crates/mycelium-mcp", version = "0.3.0" }
+mycelium-model = { path = "crates/mycelium-model", version = "0.3.0" }
+mycelium-provider-openai = { path = "crates/mycelium-provider-openai", version = "0.3.0" }
+mycelium-runtime = { path = "crates/mycelium-runtime", version = "0.3.0" }
+mycelium-tools = { path = "crates/mycelium-tools", version = "0.3.0" }
 
 async-trait = "0.1"
 futures-core = "0.3"

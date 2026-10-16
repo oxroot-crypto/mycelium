@@ -157,6 +157,16 @@ fn map_chunk(
 
     if let Some(choice) = value.get("choices").and_then(|choices| choices.get(0)) {
         let delta = choice.get("delta");
+        // 思考（推理）增量：DeepSeek `delta.reasoning_content`
+        if let Some(reasoning) = delta
+            .and_then(|delta| delta.get("reasoning_content"))
+            .and_then(|content| content.as_str())
+            && !reasoning.is_empty()
+        {
+            deltas.push(ModelDelta::ThinkingDelta {
+                text: reasoning.to_owned(),
+            });
+        }
         if let Some(content) = delta
             .and_then(|delta| delta.get("content"))
             .and_then(|content| content.as_str())
@@ -219,9 +229,14 @@ fn map_chunk(
             .get("completion_tokens")
             .and_then(serde_json::Value::as_u64)
             .unwrap_or(0);
+        let reasoning_tokens = usage
+            .get("completion_tokens_details")
+            .and_then(|details| details.get("reasoning_tokens"))
+            .and_then(serde_json::Value::as_u64);
         deltas.push(ModelDelta::Usage {
             input_tokens,
             output_tokens,
+            reasoning_tokens,
         });
     }
 
@@ -341,9 +356,45 @@ mod tests {
                 ModelDelta::Usage {
                     input_tokens: 11,
                     output_tokens: 7,
+                    reasoning_tokens: None,
                 },
                 ModelDelta::Finished {
                     stop_reason: StopReason::ToolUse,
+                },
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn maps_reasoning_content_and_tokens() {
+        let chunks = vec![
+            "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"先想\"},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"一下\"},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"delta\":{\"content\":\"答案\"},\"finish_reason\":null}]}\n\n",
+            "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\n",
+            "data: {\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":20,\"completion_tokens_details\":{\"reasoning_tokens\":15}}}\n\n",
+            "data: [DONE]\n\n",
+        ];
+        let deltas = collect_deltas(chunks).await;
+        assert_eq!(
+            deltas,
+            vec![
+                ModelDelta::ThinkingDelta {
+                    text: "先想".to_owned()
+                },
+                ModelDelta::ThinkingDelta {
+                    text: "一下".to_owned()
+                },
+                ModelDelta::TextDelta {
+                    text: "答案".to_owned()
+                },
+                ModelDelta::Usage {
+                    input_tokens: 10,
+                    output_tokens: 20,
+                    reasoning_tokens: Some(15),
+                },
+                ModelDelta::Finished {
+                    stop_reason: StopReason::EndTurn,
                 },
             ]
         );

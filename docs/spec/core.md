@@ -3,8 +3,8 @@
 > 本文件是 mycelium 形式化契约的**单一真实来源（Single Source of Truth）**。
 > 任何行为变更必须遵循：**先改本契约 → 再改测试 → 再改实现 → 契约漂移审计**（见 §5）。
 >
-> - 版本：v0.2.0（2026-10-14）
-> - 覆盖范围：`mycelium-core`、`mycelium-model`、`mycelium-tools`、`mycelium-runtime`、`mycelium-provider-openai`、`mycelium`（门面）
+> - 版本：v0.3.0（2026-10-16）
+> - 覆盖范围：`mycelium-core`、`mycelium-model`、`mycelium-tools`、`mycelium-runtime`、`mycelium-macros`、`mycelium-mcp`、`mycelium-provider-openai`、`mycelium`（门面）
 > - 状态列取值：`Pending`（待验证）/ `Passed`（验证通过）/ `Planned`（未实现，不计入本次覆盖率）
 
 ## 0. 豁免判定与严重级别
@@ -12,9 +12,9 @@
 - 本仓库交付物为**对外契约类 SDK**（公共 API 即契约）。依据 FSVDD §1.1，将以下推荐项升级为**强制**：
   测试与约束 1:1 对齐（100% 追溯）、状态机全路径遍历、基于属性的测试（PBT）、证伪抽查。
 - 不适用豁免（FSVDD §1.2）：本仓库承载对外接口与状态流转。
-- v0.2 覆盖**已实现**的纯逻辑与运行时行为（§2、§3）：领域类型、装配器、入参校验、执行循环、
-  OpenAI 兼容 Provider 与事件不变量；其余未实现部分（工具并发、权限策略、时长预算等）列入
-  §4「计划约束」，不计入本次交付覆盖率，避免"契约已定义但无验证"的假象。
+- v0.3 在 v0.2 基础上覆盖：工具并发执行与超时、权限策略、`#[tool]` 派生宏、MCP 客户端适配、
+  模型思考（推理）过程支持；其余未实现部分（异步钩子、结构化输出、时长预算等）列入 §4
+  「计划约束」，不计入本次交付覆盖率。
 
 ## 1. 术语与记法
 
@@ -194,6 +194,58 @@
 | `FC-ERR-042` | 异常处理 | 缺失 API key → 构建期显式错误（拒绝启动） | `provider::tests::missing_api_key_is_rejected` | Passed |
 | `FC-ERR-043` | 异常处理 | 流在未收到 `finish_reason` 与 `[DONE]` 的情况下中断 → `Transport` | `stream::tests::truncated_stream_is_transport_error` | Passed |
 
+### 2.16 工具并发与超时（`mycelium-runtime`）
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-100` | 后置约束 | `max_parallel_tool_calls = 1`（默认）：工具严格顺序执行，事件形如 `Started(c1) → Finished(c1) → Started(c2) → Finished(c2)` | `engine::tests::sequential_tool_calls_by_default` | Passed |
+| `FC-POST-101` | 后置约束 | 并发上限 `N > 1`：工具**同时**启动（在途数 ≤ N），完成顺序可为任意，但结果按调用顺序回灌且**内容与调用一一对应**（`ToolResult` 的 `call_id` 与 `content` 均不得错位） | `engine::tests::concurrent_tools_are_parallel_and_ordered`、`engine::tests::concurrent_partial_failure_keeps_order` | Passed |
+| `FC-POST-102` | 后置约束 | 并发下事件 `seq` 仍从 0 连续且互不重复（发射串行化）；`ToolCallStarted/Finished` 配对完整 | `engine::tests::concurrent_events_stay_serialized` | Passed |
+| `FC-ERR-045` | 异常处理 | `tool_timeout` 超限 → `ToolError::Timeout` 语义错误结果回灌，运行继续 | `engine::tests::tool_timeout_is_fed_back` | Passed |
+| `FC-ERR-046` | 异常处理 | 并发下个别工具失败/超时不阻塞其他工具；回灌顺序仍按调用顺序 | `engine::tests::concurrent_partial_failure_keeps_order` | Passed |
+
+### 2.17 权限策略（`mycelium-tools::policy`）
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-110` | 后置约束 | `Allow`（默认 `AllowAll`）：工具正常执行，行为与 v0.2 一致 | `engine::tests::policy_allow_executes_tool`、`policy::tests::allow_all_permits_everything` | Passed |
+| `FC-ERR-047` | 异常处理 | `Deny { reason }`：工具**不被执行**（执行次数为 0），拒绝原因以错误结果回灌 | `engine::tests::policy_deny_is_fed_back_without_execution` | Passed |
+| `FC-POST-111` | 后置约束 | `DenyList`：列表内工具拒绝、其余允许；`AllowList`：仅列表内工具允许、其余拒绝 | `policy::tests::deny_list_rejects_listed_names`、`policy::tests::allow_list_allows_only_listed_names` | Passed |
+| `FC-POST-112` | 后置约束 | 策略在入参校验与工具执行**之前**调用；策略检查支持取消竞争 | `engine::tests::policy_deny_is_fed_back_without_execution`（校验顺序隐含）、`policy::tests::check_called_before_execution` | Passed |
+
+### 2.18 `#[tool]` 派生宏（`mycelium-macros`）
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-120` | 后置约束 | 由函数签名生成 `ToolSpec`：名称 = 函数名（可被 `name` 覆盖）、描述 = 文档注释（可被 `description` 覆盖）；schema 由参数类型映射（`String`/整数/`f32|f64`/`bool`/`Vec<T>`/`Option<T>`），`Option<T>` 不计入 `required`；输出 `{"type":"object","properties":…,"required":[…],"additionalProperties":false}` | `derive::tests::spec_matches_signature`、`derive::tests::attributes_override_name_and_description` | Passed |
+| `FC-POST-121` | 后置约束 | 执行路径：入参反序列化 → 调用原函数（async 与 sync 均支持）→ `String` 结果直传、`ToolOutput` 直传、其余类型 JSON 序列化；函数 `Err` → `ToolError::Execution` | `derive::tests::executes_async_function`、`derive::tests::executes_sync_function`、`derive::tests::string_and_tool_output_passthrough` | Passed |
+| `FC-ERR-048` | 异常处理 | 入参反序列化失败（类型不符 / 缺必填）→ `ToolError::InvalidArguments`（含参数名与原错误） | `derive::tests::rejects_invalid_arguments` | Passed |
+| `FC-POST-122` | 后置约束 | 宏在编译期拒绝非法定义（非法工具名、引用 / 模式 / mut 参数、非 `Result` 返回类型、泛型函数）；属性解析拒绝未知参数与非字面量 | `macros::tests::rejects_invalid_definitions`、`macros::tests::parses_attributes`、`macros::tests::expands_valid_function`（trybuild 编译失败快照计划 v0.4） | Passed |
+
+### 2.19 MCP 客户端适配（`mycelium-mcp`）
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-130` | 后置约束 | 握手：`initialize`（协议版本 + clientInfo）→ 记录 `serverInfo` → `notifications/initialized`（无 id） | `client::tests::initialize_handshake_records_server_info` | Passed |
+| `FC-POST-131` | 后置约束 | `tools/list` → `ToolSpec`（名称经 `ToolName` 校验、`description` 缺省为空、`inputSchema` 必须是对象）；支持 `nextCursor` 分页且页数有硬上限 | `client::tests::list_tools_maps_specs`、`client::tests::list_tools_follows_pagination`、`client::tests::invalid_tool_schema_is_rejected` | Passed |
+| `FC-POST-132` | 后置约束 | `tools/call` → `ToolOutput`：`content` 数组中 text 块按序拼接；`isError: true` → 错误结果 | `client::tests::call_tool_maps_text_content`、`client::tests::call_tool_maps_error_flag` | Passed |
+| `FC-POST-133` | 后置约束 | `tools()` 产出的 `Arc<dyn Tool>` 可注册进 `ToolRegistry` 并通过 `Tool::call` 调用（代理到 MCP 服务） | `client::tests::mcp_tools_register_into_registry` | Passed |
+| `FC-ERR-050` | 异常处理 | JSON-RPC 错误响应 → `McpError::Rpc { code, message }`；工具代理层归约为 `ToolError::Execution` | `client::tests::jsonrpc_error_maps_to_rpc_error` | Passed |
+| `FC-ERR-051` | 异常处理 | 传输关闭 / 进程退出 → 所有未完成请求显式失败（闭合已观察时为 `TransportClosed`；写失败先发生时可为携带 IO 详情的 `Transport`），不得悬挂 | `client::tests::transport_close_fails_pending_requests` | Passed |
+
+### 2.20 思考（推理）过程支持
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-140` | 后置约束 | 思考增量装配：`ThinkingDelta` 按序拼接为单个 `Thinking` 块，且位于 `Text` 块**之前**；无思考时消息不含 Thinking 块 | `assembler::tests::assembles_thinking_block_before_text`、`e2e::e2e_text_completion` | Passed |
+| `FC-POST-141` | 后置约束 | `Usage.reasoning_tokens` 取自提供方细化统计（缺省 0）；思考 Token 已包含在输出 Token 内，`total_tokens` 不重复累加 | `response::tests::reasoning_tokens_do_not_double_count`、`assembler::tests::usage_reasoning_tokens_propagate`、`e2e::e2e_text_completion` | Passed |
+| `FC-POST-142` | 后置约束 | 思考事件：运行时对每个思考增量发射 `ModelThinkingDelta`（逐片、与其他事件共享 `seq` 连续性） | `engine::tests::thinking_deltas_are_emitted_and_assembled` | Passed |
+| `FC-POST-143` | 后置约束 | 思考内容不回传：OpenAI 兼容请求映射剔除助手历史中的 `Thinking` 块（只读观测语义） | `request::tests::strips_thinking_blocks_from_history` | Passed |
+| `FC-POST-144` | 后置约束 | 请求映射：`ReasoningOptions.enabled` → `thinking: {"type": ...}`；`effort` → `reasoning_effort`；未配置时不发送（使用提供方默认） | `request::tests::maps_reasoning_options` | Passed |
+| `FC-POST-145` | 后置约束 | 提供方流映射：`delta.reasoning_content` → `ThinkingDelta`；`completion_tokens_details.reasoning_tokens` → `Usage` 细化字段 | `stream::tests::maps_reasoning_content_and_tokens` | Passed |
+| `FC-POST-146` | 后置约束 | `ContentBlock::Thinking` 与 `AgentEventKind::ModelThinkingDelta` 的 wire 标签稳定（`thinking` / `model_thinking_delta`） | `message::tests::thinking_block_wire_format`、`event::tests::event_wire_tags_are_stable` | Passed |
+| `FC-PRE-035` | 前置约束 | `AgentConfig` 校验 `reasoning.effort`：`1..=32` 个 ASCII 字母 / 数字 / `_` / `-`，否则 `ConfigError::InvalidReasoningEffort` | `config::tests::reasoning_effort_validation` | Passed |
+
 ## 3. 属性测试（PBT，对应 FSVDD §4.2.1）
 
 | 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
@@ -208,14 +260,13 @@
 
 以下条目在实现对应功能时**必须**移入 §2 并补齐测试映射：
 
+- 异步钩子（`RunHooks` 异步化）与指标导出：涉及公开 API 破坏性变更，走 RFC（v0.3.1）。
+- 结构化工具输出（多内容块、图片等）：涉及 `ContentBlock::ToolResult` wire 格式破坏性变更（v0.3.1）。
 - 时长预算（`BudgetKind::DurationMs`）：单次 Run 总时长超限终止。
-- 工具超时：由运行时策略层统一施加（`ToolError::Timeout`）。
-- 权限策略：策略拒绝返回 `ToolError::Denied`；内核默认不隐式放行。
-- 工具并发执行（v0.3）：结果回灌顺序与调用顺序一致；跨 Run 无共享可变状态。
-- 结构化工具输出（多内容块、图片等）。
 - 完整 JSON Schema 支持（超出 §2.13 子集的关键字）。
 - 重试策略：依据 `ModelError::is_retryable` 的自动重试与退避。
 - 会话持久化与恢复；tracing 结构化 span（当前仅事件级埋点）。
+- MCP：资源 / 提示模板、采样回调（server → client 请求）、HTTP 传输。
 - 序列化兼容：核心类型新增字段需走非破坏性变更评审；枚举新增变体视为破坏性变更。
 
 ## 5. 变更协议与契约漂移审计
@@ -244,10 +295,49 @@ flowchart LR
 | v0.2.0 | 2026-10-14 | 新增执行循环契约（§2.14）：循环语义、预算、取消、事件不变量 | 新增 |
 | v0.2.0 | 2026-10-14 | 移除 `FC-POST-052`（骨架哨兵），由 §2.14 取代；`AgentRuntime::run` 行为从「显式未实现」变为「真实执行循环」 | 行为变更 |
 | v0.2.0 | 2026-10-14 | 新增 OpenAI 兼容 Provider 契约（§2.15） | 新增 |
+| v0.3.0 | 2026-10-16 | 新增工具并发与超时契约（§2.16）；`AgentConfig` 新增 `max_parallel_tool_calls`、`tool_timeout` 字段（默认值保持 v0.2 行为） | 新增（非破坏性） |
+| v0.3.0 | 2026-10-16 | 新增权限策略契约（§2.17）：`ToolPolicy` SPI、`DenyList` / `AllowList` / `AllowAll` | 新增 |
+| v0.3.0 | 2026-10-16 | 新增 `#[tool]` 派生宏契约（§2.18） | 新增 |
+| v0.3.0 | 2026-10-16 | 新增 MCP 客户端契约（§2.19） | 新增 |
+| v0.3.0 | 2026-10-16 | 新增思考（推理）支持契约（§2.20）：`ContentBlock::Thinking`、`ModelDelta::ThinkingDelta`、`AgentEventKind::ModelThinkingDelta`、`Usage.reasoning_tokens`、`ModelRequest.reasoning`、`AgentConfig.reasoning` | 破坏性（枚新增变体 / 结构新增字段） |
 
 ## 6. 验证报告（FC-Verification Report）
 
-### 6.1 v0.2（当前）
+### 6.1 v0.3（当前）
+
+- 验证日期：2026-10-16
+- 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
+- 执行命令与结果：
+  - `cargo test --workspace --all-features`：**157 个单元 / 集成测试 + 8 个 doctest** 全部通过
+    （单元 / 集成：core 46 + tools 17 + derive 7 + macros 4 + runtime 38 + model 17 + provider 15 + e2e 4 + mcp 9；
+    macros 文档示例 1 个按 `ignore` 处理，非可执行契约）；
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`：零告警；
+  - `cargo fmt --all --check`：通过；
+  - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features`：通过；
+  - `cargo run -p mycelium --example basic`：端到端成功。
+- **真实模型联调**（DeepSeek V4.1-Flash，`deepseek-flash`）：
+  - `cargo run -p mycelium-provider-openai --example deepseek`：纯文本对话、工具调用往返
+    （add → 42）、流式事件、思考链（`reasoning_content` → `Thinking` 块；`reasoning_tokens` 统计）
+    全部通过；
+  - `cargo run -p mycelium --features provider-openai --example agent_deepseek_mcp`（全栈）：
+    npx `@modelcontextprotocol/server-filesystem` 启动成功并发现 **14 个 MCP 工具**；
+    模型自主调用 `read_text_file`，通过 MCP 正确读取并回答文件内容（steps=2，含思考链与
+    `reasoning_tokens`）。
+- 追溯覆盖率：§2 与 §3 共 **115 条**约束（v0.1 的 43 条 + v0.2 的 45 条 + v0.3 的 27 条），
+  100% 映射到测试且全部 `Passed`（见状态列）。
+- 证伪抽查（Falsification Check，FSVDD §4.2.4）：
+
+| # | 故意破坏的约束 | 预期变红测试 | 结果 |
+| :--- | :--- | :--- | :--- |
+| F9 | 并发保序 `buffered` → `buffer_unordered` | `engine::tests::concurrent_tools_are_parallel_and_ordered` | 首轮**未变红** → 测试已强化（断言结果内容与调用一一对应）后复验变红 ✓ |
+| F10 | 权限拒绝失效（`Deny` 分支不生效） | `engine::tests::policy_deny_is_fed_back_without_execution` | 变红 ✓（已还原） |
+| F11 | 思考块顺序颠倒（`Text` 先于 `Thinking`） | `assembler::tests::assembles_thinking_block_before_text` | 变红 ✓（已还原） |
+| F12 | MCP 非法 schema 静默跳过 | `client::tests::invalid_tool_schema_is_rejected` | 变红 ✓（已还原） |
+
+> F9 首轮未变红暴露了原测试的弱点：它只校验 `call_id` 顺序，而 `call_id` 本身由调用顺序 zip 生成，
+> 内容错位无法被发现。已按 FSVDD 要求强化测试（校验 `call_id` 与 `content` 的对应关系）并复验通过。
+
+### 6.2 v0.2（历史）
 
 - 验证日期：2026-10-14
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -268,7 +358,7 @@ flowchart LR
 | F7 | 工具错误改为直接终止（不回灌） | `engine::tests::failing_tool_error_is_fed_back` | 变红 ✓（已还原） |
 | F8 | 429 限流映射改为普通 Api 错误 | `provider::tests::maps_error_status_rules` | 变红 ✓（已还原） |
 
-### 6.2 v0.1（历史）
+### 6.3 v0.1（历史）
 
 - 验证日期：2026-10-14；结果：55 个单元 / 属性测试 + 4 个 doctest 全部通过；clippy / fmt / doc 零告警。
 - 证伪抽查 F1 ~ F4（工具名长度上限、重名注册覆盖、转移边删除、饱和加法改回绕）全部按预期变红后还原。

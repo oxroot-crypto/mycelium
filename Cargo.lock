@@ -635,9 +635,10 @@ dependencies = [
 
 [[package]]
 name = "mycelium"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "mycelium-core",
+ "mycelium-mcp",
  "mycelium-model",
  "mycelium-provider-openai",
  "mycelium-runtime",
@@ -648,7 +649,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-core"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "proptest",
  "serde",
@@ -659,8 +660,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "mycelium-macros"
+version = "0.3.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 3.0.9",
+]
+
+[[package]]
+name = "mycelium-mcp"
+version = "0.3.0"
+dependencies = [
+ "async-trait",
+ "mycelium-core",
+ "mycelium-tools",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "mycelium-model"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "futures-core",
@@ -674,7 +697,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-provider-openai"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "futures-util",
  "mycelium-core",
@@ -691,7 +714,7 @@ dependencies = [
 
 [[package]]
 name = "mycelium-runtime"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "futures-core",
  "futures-util",
@@ -706,12 +729,15 @@ dependencies = [
 
 [[package]]
 name = "mycelium-tools"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "async-trait",
  "mycelium-core",
+ "mycelium-macros",
+ "serde",
  "serde_json",
  "thiserror",
+ "tokio",
 ]
 
 [[package]]
@@ -1109,6 +1135,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
+name = "signal-hook-registry"
+version = "1.4.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b"
+dependencies = [
+ "errno",
+ "libc",
+]
+
+[[package]]
 name = "simd_cesu8"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1253,6 +1289,7 @@ dependencies = [
  "libc",
  "mio",
  "pin-project-lite",
+ "signal-hook-registry",
  "socket2",
  "tokio-macros",
  "windows-sys 0.61.2",

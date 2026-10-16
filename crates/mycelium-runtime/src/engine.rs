@@ -1,16 +1,21 @@
 //! 执行循环引擎。
 //!
-//! 实现 `docs/architecture/lifecycle.md` 定义的状态机与 v0.2 运行语义：顺序执行工具、
-//! 预算 / 取消 / 超时在循环边界强制、事件从唯一发射点产出（`seq` 连续、终态唯一）。
-//! 契约编号见 `docs/spec/core.md` §2.14。
+//! 实现 `docs/architecture/lifecycle.md` 定义的状态机与运行语义：工具顺序 / 并发执行、
+//! 展开策略与超时、预算 / 取消 / 超时在循环边界强制、事件从统一发射器产出
+//! （`seq` 连续且与发送顺序严格一致）。
+//!
+//! 契约编号见 `docs/spec/core.md` §2.14 / §2.16 / §2.17。
 //!
 //! 事件是可选观测面：`run` 路径不创建事件通道；`run_events` 路径通过有界通道
 //! （[`EVENT_CHANNEL_CAPACITY`]）产生背压，接收端关闭后运行不中断。
 
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
-use futures_util::StreamExt;
+use futures_util::{StreamExt, stream};
 use mycelium_core::event::{AgentEvent, AgentEventKind};
 use mycelium_core::message::{ContentBlock, Message};
 use mycelium_core::response::{ModelResponse, Usage};
@@ -20,8 +25,10 @@ use mycelium_core::{
     AgentConfig, AgentError, BudgetKind, CancellationToken, ModelError, RunId, ToolError,
 };
 use mycelium_model::{DeltaAssembler, ModelDelta, ModelProvider, ModelRequest};
+use mycelium_tools::policy::{PolicyDecision, ToolPolicy};
 use mycelium_tools::schema::validate_arguments;
-use mycelium_tools::{ToolContext, ToolOutput, ToolRegistry};
+use mycelium_tools::{Tool, ToolContext, ToolOutput, ToolRegistry};
+use tokio::sync::Mutex as AsyncMutex;
 use tokio::sync::mpsc::Sender;
 
 use crate::hooks::{RunContext, RunHooks};
@@ -30,6 +37,59 @@ use crate::run::{RunInput, RunOutcome};
 /// 事件通道容量（背压边界）。
 pub(crate) const EVENT_CHANNEL_CAPACITY: usize = 256;
 
+/// 事件发射器（可克隆）。
+///
+/// 并发发射时 `seq` 的分配与发送在同一把锁内完成，保证消费者观察到的事件顺序
+/// 与 `seq` 顺序严格一致。
+#[derive(Clone)]
+pub(crate) struct Emitter {
+    run_id: RunId,
+    seq: Arc<AsyncMutex<u64>>,
+    events: Option<Sender<AgentEvent>>,
+    closed: Arc<AtomicBool>,
+}
+
+impl Emitter {
+    /// 创建发射器。
+    pub(crate) fn new(run_id: RunId, events: Option<Sender<AgentEvent>>) -> Self {
+        Self {
+            run_id,
+            seq: Arc::new(AsyncMutex::new(0)),
+            events,
+            closed: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// 发射一个事件。
+    ///
+    /// 返回显式 `Send` 的装箱 future（规避 rustc 对 `&self` 异步方法在
+    /// `tokio::spawn` 边界上的 HRTB 限制）。接收端关闭后显式标记并停止发射
+    /// （事件为可选观测面，运行继续）。
+    pub(crate) fn emit<'a>(
+        &'a self,
+        kind: AgentEventKind,
+    ) -> Pin<Box<dyn Future<Output = ()> + Send + 'a>> {
+        Box::pin(async move {
+            if self.closed.load(Ordering::Relaxed) {
+                return;
+            }
+            let mut seq = self.seq.lock().await;
+            let event = AgentEvent {
+                run_id: self.run_id,
+                seq: *seq,
+                at_ms: now_ms(),
+                kind,
+            };
+            *seq = seq.saturating_add(1);
+            if let Some(sender) = &self.events
+                && sender.send(event).await.is_err()
+            {
+                self.closed.store(true, Ordering::Relaxed);
+            }
+        })
+    }
+}
+
 /// 循环内部结果（成功路径）。
 struct RunOutput {
     messages: Vec<Message>,
@@ -37,37 +97,52 @@ struct RunOutput {
     steps: u32,
 }
 
+/// 引擎装配部件（由 [`crate::AgentRuntime`] 提供，避免长参数列表）。
+pub(crate) struct RuntimeParts {
+    /// Agent 配置。
+    pub(crate) config: AgentConfig,
+    /// 模型提供方。
+    pub(crate) provider: Arc<dyn ModelProvider>,
+    /// 工具注册表。
+    pub(crate) tools: ToolRegistry,
+    /// 权限策略。
+    pub(crate) policy: Arc<dyn ToolPolicy>,
+    /// 运行钩子。
+    pub(crate) hooks: Option<Arc<dyn RunHooks>>,
+}
+
 /// 执行引擎：一次运行的全部可变状态。
 pub(crate) struct Engine {
     config: AgentConfig,
     provider: Arc<dyn ModelProvider>,
     tools: ToolRegistry,
+    policy: Arc<dyn ToolPolicy>,
     hooks: Option<Arc<dyn RunHooks>>,
     run_id: RunId,
     cancel: CancellationToken,
-    seq: u64,
-    events: Option<Sender<AgentEvent>>,
-    events_closed: bool,
+    emitter: Emitter,
 }
 
 impl Engine {
     /// 创建引擎（`run_id` 在此生成）。
-    pub(crate) fn new(
-        config: AgentConfig,
-        provider: Arc<dyn ModelProvider>,
-        tools: ToolRegistry,
-        hooks: Option<Arc<dyn RunHooks>>,
-    ) -> Self {
+    pub(crate) fn new(parts: RuntimeParts) -> Self {
+        let RuntimeParts {
+            config,
+            provider,
+            tools,
+            policy,
+            hooks,
+        } = parts;
+        let run_id = RunId::generate();
         Self {
             config,
             provider,
             tools,
+            policy,
             hooks,
-            run_id: RunId::generate(),
+            run_id,
             cancel: CancellationToken::new(),
-            seq: 0,
-            events: None,
-            events_closed: false,
+            emitter: Emitter::new(run_id, None),
         }
     }
 
@@ -80,13 +155,14 @@ impl Engine {
         input: RunInput,
         events: Option<Sender<AgentEvent>>,
     ) -> Result<RunOutcome, AgentError> {
-        self.events = events;
+        self.emitter = Emitter::new(self.run_id, events);
         self.cancel = input.cancel.clone();
         tracing::debug!(run_id = %self.run_id, provider = self.provider.id(), "运行开始");
-        self.emit(AgentEventKind::RunStarted {
-            message_count: input.messages.len(),
-        })
-        .await;
+        self.emitter
+            .emit(AgentEventKind::RunStarted {
+                message_count: input.messages.len(),
+            })
+            .await;
 
         let context = self.context();
         if let Some(hooks) = &self.hooks {
@@ -95,11 +171,12 @@ impl Engine {
 
         match self.drive(input).await {
             Ok(output) => {
-                self.emit(AgentEventKind::RunCompleted {
-                    usage: output.usage,
-                    steps: output.steps,
-                })
-                .await;
+                self.emitter
+                    .emit(AgentEventKind::RunCompleted {
+                        usage: output.usage,
+                        steps: output.steps,
+                    })
+                    .await;
                 let outcome = RunOutcome {
                     messages: output.messages,
                     usage: output.usage,
@@ -113,12 +190,13 @@ impl Engine {
             }
             Err(error) => {
                 match &error {
-                    AgentError::Cancelled => self.emit(AgentEventKind::RunCancelled).await,
+                    AgentError::Cancelled => self.emitter.emit(AgentEventKind::RunCancelled).await,
                     other => {
-                        self.emit(AgentEventKind::RunFailed {
-                            message: other.to_string(),
-                        })
-                        .await;
+                        self.emitter
+                            .emit(AgentEventKind::RunFailed {
+                                message: other.to_string(),
+                            })
+                            .await;
                     }
                 }
                 if let Some(hooks) = &self.hooks {
@@ -135,27 +213,6 @@ impl Engine {
         RunContext {
             run_id: self.run_id,
             cancel: self.cancel.clone(),
-        }
-    }
-
-    /// 发射一个事件。
-    ///
-    /// 接收端已关闭时显式记录并停止发射（事件是可选观测面，运行继续）。
-    async fn emit(&mut self, kind: AgentEventKind) {
-        if self.events_closed {
-            return;
-        }
-        let event = AgentEvent {
-            run_id: self.run_id,
-            seq: self.seq,
-            at_ms: now_ms(),
-            kind,
-        };
-        self.seq = self.seq.saturating_add(1);
-        if let Some(sender) = &self.events
-            && sender.send(event).await.is_err()
-        {
-            self.events_closed = true;
         }
     }
 
@@ -188,16 +245,19 @@ impl Engine {
             steps = next_step;
 
             state = transition(state, RunEvent::RequestModel)?;
-            self.emit(AgentEventKind::StepStarted { step: steps }).await;
+            self.emitter
+                .emit(AgentEventKind::StepStarted { step: steps })
+                .await;
             if let Some(hooks) = &self.hooks {
                 hooks.on_step_start(&self.context(), steps);
             }
-            self.emit(AgentEventKind::ModelRequestStarted {
-                model: self.config.model().clone(),
-                message_count: messages.len(),
-                tool_count: self.tools.len(),
-            })
-            .await;
+            self.emitter
+                .emit(AgentEventKind::ModelRequestStarted {
+                    model: self.config.model().clone(),
+                    message_count: messages.len(),
+                    tool_count: self.tools.len(),
+                })
+                .await;
 
             let response = match self.call_model(&messages).await {
                 Ok(response) => {
@@ -217,6 +277,11 @@ impl Engine {
                 usage
                     .output_tokens
                     .saturating_add(response.usage.output_tokens),
+            )
+            .with_reasoning_tokens(
+                usage
+                    .reasoning_tokens
+                    .saturating_add(response.usage.reasoning_tokens),
             );
             if let Some(limit) = self.config.max_output_tokens()
                 && usage.output_tokens > limit.get()
@@ -229,11 +294,12 @@ impl Engine {
                 });
             }
 
-            self.emit(AgentEventKind::ModelRequestFinished {
-                stop_reason: response.stop_reason,
-                usage: response.usage,
-            })
-            .await;
+            self.emitter
+                .emit(AgentEventKind::ModelRequestFinished {
+                    stop_reason: response.stop_reason,
+                    usage: response.usage,
+                })
+                .await;
 
             let tool_calls: Vec<ToolCall> = response
                 .message
@@ -247,7 +313,8 @@ impl Engine {
                 })
                 .collect();
             for call in &tool_calls {
-                self.emit(AgentEventKind::ModelToolCall { call: call.clone() })
+                self.emitter
+                    .emit(AgentEventKind::ModelToolCall { call: call.clone() })
                     .await;
             }
             messages.push(response.message);
@@ -263,8 +330,9 @@ impl Engine {
             }
 
             state = transition(state, RunEvent::ToolUseRequested)?;
-            for call in tool_calls {
-                let output = match self.execute_tool(&call).await {
+            let results = self.execute_tools(&tool_calls).await;
+            for (call, result) in tool_calls.iter().zip(results) {
+                let output = match result {
                     Ok(output) => output,
                     Err(AgentError::Cancelled) => {
                         transition(state, RunEvent::Cancel)?;
@@ -285,6 +353,28 @@ impl Engine {
         }
     }
 
+    /// 按配置顺序 / 并发执行工具调用；结果保持**调用顺序**。
+    async fn execute_tools(&self, calls: &[ToolCall]) -> Vec<Result<ToolOutput, AgentError>> {
+        let runtime = ToolRuntime {
+            emitter: self.emitter.clone(),
+            tools: self.tools.clone(),
+            policy: Arc::clone(&self.policy),
+            hooks: self.hooks.clone(),
+            run_id: self.run_id,
+            cancel: self.cancel.clone(),
+            tool_timeout: self.config.tool_timeout(),
+        };
+        let concurrency = self.config.max_parallel_tool_calls().get();
+        // 显式循环构造 future 列表（规避 rustc 对高阶闭包返回 future 的 HRTB 限制）。
+        let mut futures = Vec::with_capacity(calls.len());
+        for call in calls {
+            let runtime = runtime.clone();
+            let call = call.clone();
+            futures.push(async move { runtime.invoke(&call).await });
+        }
+        stream::iter(futures).buffered(concurrency).collect().await
+    }
+
     /// 调用模型：构造请求、施加超时、消费流并装配响应。
     async fn call_model(&mut self, messages: &[Message]) -> Result<ModelResponse, AgentError> {
         let request = ModelRequest {
@@ -295,11 +385,12 @@ impl Engine {
             tool_choice: self.config.tool_choice().clone(),
             max_output_tokens: self.config.max_output_tokens().map(|value| value.get()),
             temperature: self.config.temperature(),
+            reasoning: self.config.reasoning().cloned(),
             cancel: self.cancel.clone(),
         };
 
         let timeout = self.config.request_timeout();
-        let timeout_ms = u64::try_from(timeout.as_millis()).unwrap_or(u64::MAX);
+        let timeout_ms = millis_of(timeout);
         match tokio::time::timeout(timeout, self.consume_model_stream(request)).await {
             Ok(result) => result,
             Err(_elapsed) => Err(ModelError::Timeout { timeout_ms }.into()),
@@ -324,8 +415,20 @@ impl Engine {
                     let Some(item) = item else { break };
                     match item {
                         Ok(delta) => {
-                            if let ModelDelta::TextDelta { text } = &delta {
-                                self.emit(AgentEventKind::ModelTextDelta { text: text.clone() }).await;
+                            match &delta {
+                                ModelDelta::TextDelta { text } => {
+                                    self.emitter
+                                        .emit(AgentEventKind::ModelTextDelta { text: text.clone() })
+                                        .await;
+                                }
+                                ModelDelta::ThinkingDelta { text } => {
+                                    self.emitter
+                                        .emit(AgentEventKind::ModelThinkingDelta {
+                                            text: text.clone(),
+                                        })
+                                        .await;
+                                }
+                                _ => {}
                             }
                             assembler.push(delta)?;
                         }
@@ -337,38 +440,74 @@ impl Engine {
         let response = assembler.finish()?;
         Ok(response)
     }
+}
 
-    /// 执行一次工具调用（含事件配对与钩子；错误结果此处回灌来源）。
-    async fn execute_tool(&mut self, call: &ToolCall) -> Result<ToolOutput, AgentError> {
-        self.emit(AgentEventKind::ToolCallStarted {
-            call_id: call.id.clone(),
-            name: call.name.clone(),
-        })
-        .await;
+/// 工具执行上下文（可克隆进并发任务）。
+#[derive(Clone)]
+struct ToolRuntime {
+    emitter: Emitter,
+    tools: ToolRegistry,
+    policy: Arc<dyn ToolPolicy>,
+    hooks: Option<Arc<dyn RunHooks>>,
+    run_id: RunId,
+    cancel: CancellationToken,
+    tool_timeout: Option<Duration>,
+}
 
-        let outcome = self.invoke_tool(call).await;
+impl ToolRuntime {
+    /// 执行一次调用：事件配对 + 钩子（并发模式下按完成顺序触发）。
+    async fn invoke(&self, call: &ToolCall) -> Result<ToolOutput, AgentError> {
+        self.emitter
+            .emit(AgentEventKind::ToolCallStarted {
+                call_id: call.id.clone(),
+                name: call.name.clone(),
+            })
+            .await;
+
+        let outcome = self.execute(call).await;
 
         // 无论成功、错误还是取消，都必须补齐 Finished 以维持配对不变量。
         let is_error = match &outcome {
             Ok(output) => output.is_error(),
             Err(_) => true,
         };
-        self.emit(AgentEventKind::ToolCallFinished {
-            call_id: call.id.clone(),
-            name: call.name.clone(),
-            is_error,
-        })
-        .await;
+        self.emitter
+            .emit(AgentEventKind::ToolCallFinished {
+                call_id: call.id.clone(),
+                name: call.name.clone(),
+                is_error,
+            })
+            .await;
         if let Some(hooks) = &self.hooks {
-            hooks.on_tool_call(&self.context(), call);
+            hooks.on_tool_call(
+                &RunContext {
+                    run_id: self.run_id,
+                    cancel: self.cancel.clone(),
+                },
+                call,
+            );
         }
         outcome
     }
 
-    /// 实际调用工具：注册表查找、入参校验、取消竞争与错误归一化。
-    async fn invoke_tool(&mut self, call: &ToolCall) -> Result<ToolOutput, AgentError> {
+    /// 策略检查 → 注册表查找 → 入参校验 → 执行。
+    async fn execute(&self, call: &ToolCall) -> Result<ToolOutput, AgentError> {
         if self.cancel.is_cancelled() {
             return Err(AgentError::Cancelled);
+        }
+
+        // 权限策略（在入参校验与执行之前；支持取消竞争）。
+        let decision = tokio::select! {
+            biased;
+            () = self.cancel.cancelled() => return Err(AgentError::Cancelled),
+            decision = self.policy.check(&call.name, &call.arguments) => decision,
+        };
+        if let PolicyDecision::Deny { reason } = decision {
+            tracing::debug!(tool = %call.name, reason = %reason, "工具调用被策略拒绝");
+            return Ok(ToolOutput::error(format!(
+                "工具调用被拒绝（{}）：{reason}",
+                call.name
+            )));
         }
 
         let Some(tool) = self.tools.get(&call.name) else {
@@ -384,19 +523,49 @@ impl Engine {
             call_id: call.id.clone(),
             cancel: self.cancel.clone(),
         };
-        let cancel = self.cancel.clone();
-        let result = tokio::select! {
-            biased;
-            () = cancel.cancelled() => Err(ToolError::Cancelled { tool: call.name.clone() }),
-            result = tool.call(&context, call.arguments.clone()) => result,
-        };
-
+        let result = self.call_guarded(tool.as_ref(), &context, call).await;
         match result {
             Ok(output) => Ok(output),
             Err(ToolError::Cancelled { .. }) => Err(AgentError::Cancelled),
             Err(error) => {
                 tracing::debug!(tool = %call.name, error = %error, "工具执行失败（作为错误结果回灌）");
                 Ok(ToolOutput::error(error.to_string()))
+            }
+        }
+    }
+
+    /// 执行工具本体：取消竞争 + 可选超时。
+    async fn call_guarded(
+        &self,
+        tool: &dyn Tool,
+        context: &ToolContext,
+        call: &ToolCall,
+    ) -> Result<ToolOutput, ToolError> {
+        let invoke = tool.call(context, call.arguments.clone());
+        match self.tool_timeout {
+            Some(limit) => {
+                tokio::select! {
+                    biased;
+                    () = self.cancel.cancelled() => {
+                        Err(ToolError::Cancelled { tool: call.name.clone() })
+                    }
+                    result = tokio::time::timeout(limit, invoke) => match result {
+                        Ok(result) => result,
+                        Err(_elapsed) => Err(ToolError::Timeout {
+                            tool: call.name.clone(),
+                            timeout_ms: millis_of(limit),
+                        }),
+                    },
+                }
+            }
+            None => {
+                tokio::select! {
+                    biased;
+                    () = self.cancel.cancelled() => {
+                        Err(ToolError::Cancelled { tool: call.name.clone() })
+                    }
+                    result = invoke => result,
+                }
             }
         }
     }
@@ -419,24 +588,32 @@ fn now_ms() -> u64 {
         .unwrap_or(0)
 }
 
+/// 时长转毫秒（饱和到 `u64::MAX`）。
+fn millis_of(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
 #[cfg(test)]
 mod tests {
+    use std::sync::atomic::{AtomicUsize, Ordering};
     use std::time::Duration;
 
     use futures_util::StreamExt;
     use mycelium_core::event::{AgentEvent, AgentEventKind};
     use mycelium_core::message::ContentBlock;
-    use mycelium_core::{ModelError, ModelId, Role, ToolChoice};
+    use mycelium_core::{ModelError, ModelId, Role, StopReason, ToolChoice, ToolName};
     use mycelium_model::ModelProvider;
     use mycelium_tools::Tool;
+    use mycelium_tools::policy::{AllowAll, DenyList};
 
     use super::*;
     use crate::AgentRuntime;
     use crate::run::RunInput;
     use crate::test_support::{
         RecordingHooks, ScriptedProvider, ScriptedResponse, cancel_wait_tool, cancelled_tool,
-        echo_tool, failing_tool, pending_provider, strict_tool, text_response,
-        text_response_with_usage, tool_call_response, tool_call_response_with_usage,
+        counting_echo_tool, delay_tool, echo_tool, failing_tool, pending_provider, slow_tool,
+        strict_tool, text_response, text_response_with_usage, tool_call_response,
+        tool_call_response_with_usage, tool_calls_response,
     };
 
     fn base_config() -> AgentConfig {
@@ -922,5 +1099,322 @@ mod tests {
                 "run_end:true",
             ]
         );
+    }
+
+    #[tokio::test]
+    async fn sequential_tool_calls_by_default() {
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_calls_response(&[("echo", "c1", "{}"), ("echo", "c2", "{}")]),
+            text_response("done"),
+        ]));
+        let runtime = build_runtime(base_config(), provider, vec![echo_tool()]);
+
+        let (events, result) = collect_events(&runtime, RunInput::from_user_text("ping")).await;
+        result.unwrap();
+
+        let sequence: Vec<String> = events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                AgentEventKind::ToolCallStarted { call_id, .. } => {
+                    Some(format!("start:{}", call_id.as_str()))
+                }
+                AgentEventKind::ToolCallFinished { call_id, .. } => {
+                    Some(format!("finish:{}", call_id.as_str()))
+                }
+                _ => None,
+            })
+            .collect();
+        // 顺序执行：每个调用完整结束后才开始下一个
+        assert_eq!(
+            sequence,
+            vec!["start:c1", "finish:c1", "start:c2", "finish:c2"]
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_tools_are_parallel_and_ordered() {
+        let config = AgentConfig::builder()
+            .model(ModelId::new("scripted-model").unwrap())
+            .max_parallel_tool_calls(3)
+            .build()
+            .unwrap();
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_calls_response(&[
+                ("slow_a", "c1", "{}"),
+                ("slow_b", "c2", "{}"),
+                ("slow_c", "c3", "{}"),
+            ]),
+            text_response("done"),
+        ]));
+        let runtime = build_runtime(
+            config,
+            provider,
+            vec![
+                delay_tool("slow_a", 120),
+                delay_tool("slow_b", 60),
+                delay_tool("slow_c", 0),
+            ],
+        );
+
+        let (events, result) = collect_events(&runtime, RunInput::from_user_text("ping")).await;
+        let outcome = result.unwrap();
+
+        // 并行证据：完成顺序为 c3 → c2 → c1（与调用顺序不同；顺序执行时必为 c1 → c2 → c3）
+        let finish_order: Vec<String> = events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                AgentEventKind::ToolCallFinished { call_id, .. } => {
+                    Some(call_id.as_str().to_owned())
+                }
+                _ => None,
+            })
+            .collect();
+        assert_eq!(finish_order, vec!["c3", "c2", "c1"]);
+
+        // 回灌顺序 == 调用顺序，且**内容与调用一一对应**
+        let results: Vec<(String, String)> = outcome
+            .messages
+            .iter()
+            .filter_map(|message| match &message.content()[0] {
+                ContentBlock::ToolResult {
+                    tool_call_id,
+                    content,
+                    ..
+                } => Some((tool_call_id.as_str().to_owned(), content.clone())),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            results,
+            vec![
+                ("c1".to_owned(), "slow_a 完成".to_owned()),
+                ("c2".to_owned(), "slow_b 完成".to_owned()),
+                ("c3".to_owned(), "slow_c 完成".to_owned()),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_events_stay_serialized() {
+        let config = AgentConfig::builder()
+            .model(ModelId::new("scripted-model").unwrap())
+            .max_parallel_tool_calls(3)
+            .build()
+            .unwrap();
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_calls_response(&[
+                ("slow_a", "c1", "{}"),
+                ("slow_b", "c2", "{}"),
+                ("slow_c", "c3", "{}"),
+            ]),
+            text_response("done"),
+        ]));
+        let runtime = build_runtime(
+            config,
+            provider,
+            vec![
+                delay_tool("slow_a", 60),
+                delay_tool("slow_b", 30),
+                delay_tool("slow_c", 0),
+            ],
+        );
+
+        let (events, result) = collect_events(&runtime, RunInput::from_user_text("ping")).await;
+        result.unwrap();
+
+        // seq 连续且互不重复（并发发射串行化）
+        for (index, event) in events.iter().enumerate() {
+            assert_eq!(event.seq, index as u64);
+        }
+        let started = events
+            .iter()
+            .filter(|event| matches!(event.kind, AgentEventKind::ToolCallStarted { .. }))
+            .count();
+        let finished = events
+            .iter()
+            .filter(|event| matches!(event.kind, AgentEventKind::ToolCallFinished { .. }))
+            .count();
+        assert_eq!(started, 3);
+        assert_eq!(finished, 3);
+        assert_eq!(terminal_count(&events), 1);
+    }
+
+    #[tokio::test]
+    async fn tool_timeout_is_fed_back() {
+        let config = AgentConfig::builder()
+            .model(ModelId::new("scripted-model").unwrap())
+            .tool_timeout(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("slow", "c1", "{}"),
+            text_response("done"),
+        ]));
+        let runtime = build_runtime(config, provider, vec![slow_tool()]);
+
+        let outcome = runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+        match &outcome.messages[1].content()[0] {
+            ContentBlock::ToolResult {
+                content, is_error, ..
+            } => {
+                assert!(is_error);
+                assert!(content.contains("超时"));
+            }
+            other => panic!("期望 ToolResult，实际：{other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn concurrent_partial_failure_keeps_order() {
+        let config = AgentConfig::builder()
+            .model(ModelId::new("scripted-model").unwrap())
+            .max_parallel_tool_calls(3)
+            .build()
+            .unwrap();
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_calls_response(&[
+                ("echo", "c1", "{\"x\":1}"),
+                ("failing", "c2", "{}"),
+                ("delay_ok", "c3", "{}"),
+            ]),
+            text_response("done"),
+        ]));
+        let runtime = build_runtime(
+            config,
+            provider,
+            vec![echo_tool(), failing_tool(), delay_tool("delay_ok", 20)],
+        );
+
+        let outcome = runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+        let results: Vec<(String, bool)> = outcome
+            .messages
+            .iter()
+            .filter_map(|message| match &message.content()[0] {
+                ContentBlock::ToolResult {
+                    tool_call_id,
+                    is_error,
+                    ..
+                } => Some((tool_call_id.as_str().to_owned(), *is_error)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(
+            results,
+            vec![
+                ("c1".to_owned(), false),
+                ("c2".to_owned(), true),
+                ("c3".to_owned(), false),
+            ]
+        );
+    }
+
+    #[tokio::test]
+    async fn thinking_deltas_are_emitted_and_assembled() {
+        let provider = Arc::new(ScriptedProvider::new(vec![ScriptedResponse::Deltas(vec![
+            ModelDelta::ThinkingDelta {
+                text: "先想".to_owned(),
+            },
+            ModelDelta::ThinkingDelta {
+                text: "一下".to_owned(),
+            },
+            ModelDelta::TextDelta {
+                text: "答案".to_owned(),
+            },
+            ModelDelta::Usage {
+                input_tokens: 10,
+                output_tokens: 20,
+                reasoning_tokens: Some(15),
+            },
+            ModelDelta::Finished {
+                stop_reason: StopReason::EndTurn,
+            },
+        ])]));
+        let runtime = build_runtime(base_config(), provider, vec![]);
+
+        let (events, result) = collect_events(&runtime, RunInput::from_user_text("ping")).await;
+        let outcome = result.unwrap();
+
+        // 思考增量逐片发射为 ModelThinkingDelta 事件
+        let thinking_events: Vec<String> = events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                AgentEventKind::ModelThinkingDelta { text } => Some(text.clone()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(thinking_events, vec!["先想", "一下"]);
+
+        // 装配为 Thinking 块（位于文本块之前），用量含 reasoning_tokens
+        assert_eq!(
+            outcome.messages[0].content(),
+            &[
+                ContentBlock::Thinking {
+                    text: "先想一下".to_owned()
+                },
+                ContentBlock::Text {
+                    text: "答案".to_owned()
+                },
+            ]
+        );
+        assert_eq!(outcome.usage, Usage::new(10, 20).with_reasoning_tokens(15));
+    }
+
+    #[tokio::test]
+    async fn policy_allow_executes_tool() {
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("echo", "c1", "{\"x\":1}"),
+            text_response("done"),
+        ]));
+        let counter = Arc::new(AtomicUsize::new(0));
+        let runtime = AgentRuntime::builder()
+            .config(base_config())
+            .provider(provider)
+            .tool(counting_echo_tool(Arc::clone(&counter)))
+            .policy(Arc::new(AllowAll))
+            .build()
+            .unwrap();
+
+        let outcome = runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+        assert_eq!(counter.load(Ordering::SeqCst), 1);
+        match &outcome.messages[1].content()[0] {
+            ContentBlock::ToolResult {
+                content, is_error, ..
+            } => {
+                assert_eq!(content, "{\"x\":1}");
+                assert!(!is_error);
+            }
+            other => panic!("期望 ToolResult，实际：{other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn policy_deny_is_fed_back_without_execution() {
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("echo", "c1", "{}"),
+            text_response("done"),
+        ]));
+        let counter = Arc::new(AtomicUsize::new(0));
+        let policy = DenyList::new([ToolName::new("echo").unwrap()]);
+        let runtime = AgentRuntime::builder()
+            .config(base_config())
+            .provider(provider)
+            .tool(counting_echo_tool(Arc::clone(&counter)))
+            .policy(Arc::new(policy))
+            .build()
+            .unwrap();
+
+        let outcome = runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+        // 工具未被实际执行
+        assert_eq!(counter.load(Ordering::SeqCst), 0);
+        match &outcome.messages[1].content()[0] {
+            ContentBlock::ToolResult {
+                content, is_error, ..
+            } => {
+                assert!(is_error);
+                assert!(content.contains("被拒绝"));
+                assert!(content.contains("拒绝列表"));
+            }
+            other => panic!("期望 ToolResult，实际：{other:?}"),
+        }
     }
 }

@@ -91,6 +91,20 @@ pub enum ConfigError {
     /// `max_output_tokens` 为 0。
     #[error("max_output_tokens 必须 >= 1（或省略表示不限制）")]
     ZeroMaxOutputTokens,
+    /// `max_parallel_tool_calls` 为 0。
+    #[error("max_parallel_tool_calls 必须 >= 1")]
+    ZeroMaxParallelToolCalls,
+    /// `tool_timeout` 为 0。
+    #[error("tool_timeout 必须 > 0（或省略表示不限制）")]
+    ZeroToolTimeout,
+    /// `reasoning.effort` 非法。
+    #[error(
+        "reasoning_effort 必须为 1..=32 个 ASCII 字母 / 数字 / 下划线 / 连字符，实际为 {value:?}"
+    )]
+    InvalidReasoningEffort {
+        /// 非法取值。
+        value: String,
+    },
     /// `temperature` 越界或为 NaN。
     #[error("temperature 必须位于 [0.0, 2.0] 且非 NaN，实际为 {value}")]
     InvalidTemperature {

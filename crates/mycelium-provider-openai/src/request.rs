@@ -55,6 +55,20 @@ pub(crate) fn build_chat_request(request: &ModelRequest) -> Value {
     if let Some(temperature) = request.temperature {
         body.insert("temperature".to_owned(), json!(temperature));
     }
+    if let Some(reasoning) = &request.reasoning {
+        match reasoning.enabled {
+            Some(true) => {
+                body.insert("thinking".to_owned(), json!({ "type": "enabled" }));
+            }
+            Some(false) => {
+                body.insert("thinking".to_owned(), json!({ "type": "disabled" }));
+            }
+            None => {}
+        }
+        if let Some(effort) = &reasoning.effort {
+            body.insert("reasoning_effort".to_owned(), json!(effort));
+        }
+    }
     Value::Object(body)
 }
 
@@ -71,6 +85,8 @@ fn map_message(message: &Message) -> Vec<Value> {
     for block in message.content() {
         match block {
             ContentBlock::Text { text: block_text } => text.push_str(block_text),
+            // 思考（推理）内容属于只读观测：不回传给提供方（契约 §2.20）。
+            ContentBlock::Thinking { .. } => {}
             ContentBlock::ToolUse { id, name, input } => tool_calls.push(json!({
                 "id": id.as_str(),
                 "type": "function",
@@ -140,6 +156,7 @@ fn map_tool_choice(choice: &ToolChoice) -> Value {
 mod tests {
     use mycelium_core::ids::{ModelId, ToolCallId, ToolName};
     use mycelium_core::tool::ToolSpec;
+    use mycelium_model::ReasoningOptions;
 
     use super::*;
 
@@ -248,5 +265,56 @@ mod tests {
         let body = build_chat_request(&request);
         assert!(body.get("tools").is_none());
         assert!(body.get("tool_choice").is_none());
+    }
+
+    #[test]
+    fn maps_reasoning_options() {
+        let mut request = request_with(vec![Message::user_text("hi")]);
+
+        // 未配置：不发送 thinking / reasoning_effort（使用提供方默认）
+        let body = build_chat_request(&request);
+        assert!(body.get("thinking").is_none());
+        assert!(body.get("reasoning_effort").is_none());
+
+        // 显式关闭
+        request.reasoning = Some(ReasoningOptions::disabled());
+        let body = build_chat_request(&request);
+        assert_eq!(body["thinking"], json!({ "type": "disabled" }));
+        assert!(body.get("reasoning_effort").is_none());
+
+        // 显式启用 + 强度
+        request.reasoning = Some(ReasoningOptions::enabled().with_effort("max"));
+        let body = build_chat_request(&request);
+        assert_eq!(body["thinking"], json!({ "type": "enabled" }));
+        assert_eq!(body["reasoning_effort"], json!("max"));
+
+        // 仅强度
+        request.reasoning = Some(ReasoningOptions::default().with_effort("low"));
+        let body = build_chat_request(&request);
+        assert!(body.get("thinking").is_none());
+        assert_eq!(body["reasoning_effort"], json!("low"));
+    }
+
+    #[test]
+    fn strips_thinking_blocks_from_history() {
+        let request = request_with(vec![
+            Message::new(
+                Role::Assistant,
+                vec![
+                    ContentBlock::Thinking {
+                        text: "内部推理".to_owned(),
+                    },
+                    ContentBlock::Text {
+                        text: "答案".to_owned(),
+                    },
+                ],
+            )
+            .unwrap(),
+        ]);
+        let body = build_chat_request(&request);
+        let serialized = body["messages"][0].to_string();
+        // 思考内容不回传给提供方（DeepSeek 契约：reasoning_content 仅出站）
+        assert!(!serialized.contains("内部推理"));
+        assert_eq!(body["messages"][0]["content"], json!("答案"));
     }
 }

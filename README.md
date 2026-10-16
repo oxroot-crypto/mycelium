@@ -3,28 +3,32 @@
 面向 Rust 的 agent SDK：**分层通用核心**。内核不假设产品形态，同一套抽象既可嵌入应用
 （框架形态），也可演进为本地 Agent 运行时（服务形态）。
 
-> **状态：v0.2 最小可运行循环（walking skeleton）。** 执行循环、流式装配、预算/取消/超时、
-> 事件流与 OpenAI 兼容 Provider 均已可用；工具并发、权限策略、记忆等见
-> [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md)。
+> **状态：v0.3。** 执行循环、并发工具、权限策略、`#[tool]` 派生宏、MCP 客户端与
+> 模型思考过程支持均已可用，并通过 **DeepSeek V4.1-Flash 真实联调**验证；异步钩子与
+> 结构化输出见 [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md)。
 
 ## 架构
 
 ```text
 mycelium（门面：re-export + prelude）
    ├── mycelium-runtime（执行循环 / 事件流 / Session / RunHooks）
-   │      ├── mycelium-model（ModelProvider SPI / 流式增量装配器）
-   │      └── mycelium-tools（Tool SPI / 注册表 / 入参校验）
-   ├── mycelium-provider-openai（OpenAI 兼容 Provider 实现）
+   │      ├── mycelium-model（ModelProvider SPI / 流式装配器）
+   │      └── mycelium-tools（Tool SPI / 注册表 / 入参校验 / 权限策略 / #[tool] 宏再导出）
+   ├── mycelium-provider-openai（OpenAI 兼容 Provider，含 DeepSeek）
+   ├── mycelium-mcp（MCP 客户端：stdio JSON-RPC / tools）
+   ├── mycelium-macros（#[tool] 派生宏）
    └── mycelium-core（消息 / 工具协议 / 事件 / 状态机 / 错误 / 配置）
 ```
 
 | crate | 职责 |
 | :--- | :--- |
-| `mycelium-core` | 领域内核：标识、消息、工具协议、事件、运行状态机、错误分类矩阵、配置 |
+| `mycelium-core` | 领域内核：标识、消息（含思考块）、工具协议、事件、运行状态机、错误分类矩阵、配置 |
 | `mycelium-model` | 模型提供方抽象（SPI）：`ModelProvider` / `ModelRequest` / `ModelDelta` / 流式装配器 |
-| `mycelium-tools` | 工具抽象（SPI）、注册表与入参校验（JSON Schema 子集） |
-| `mycelium-runtime` | 执行引擎：`AgentRuntime` / `AgentRun` / `Session` / `RunHooks` |
-| `mycelium-provider-openai` | OpenAI 兼容 Provider（Chat Completions，流式 SSE） |
+| `mycelium-tools` | 工具抽象（SPI）、注册表、入参校验（JSON Schema 子集）、权限策略、`#[tool]` 宏 |
+| `mycelium-runtime` | 执行引擎：`AgentRuntime` / 并发工具 / 预算 / 取消 / `AgentRun` / `Session` / `RunHooks` |
+| `mycelium-macros` | 过程宏：`#[tool]` 由函数生成工具实现与 JSON Schema |
+| `mycelium-mcp` | MCP 客户端：stdio 子进程、握手、分页 `tools/list`、`tools/call` 代理 |
+| `mycelium-provider-openai` | OpenAI 兼容 Provider（Chat Completions、流式 SSE、思考链） |
 | `mycelium` | 门面：统一 re-export 与 `prelude`（可选 feature：`provider-openai`） |
 
 ## 快速开始
@@ -116,6 +120,16 @@ export OPENAI_BASE_URL=http://localhost:11434/v1   # 可选：兼容 Ollama / vL
 
 `OpenAiProvider::from_env()` 读取上述环境变量；用法示例见
 [`crates/mycelium-provider-openai/src/lib.rs`](crates/mycelium-provider-openai/src/lib.rs) 的 rustdoc。
+
+DeepSeek V4.1-Flash 真实联调（纯文本 / 工具往返 / 流式事件 / 思考链）：
+
+```bash
+cargo run -p mycelium-provider-openai --example deepseek
+```
+
+思考过程支持：`AgentConfig::reasoning`（`thinking` / `reasoning_effort`）控制思考模式；
+思考内容以 `Thinking` 内容块与 `ModelThinkingDelta` 事件暴露，`Usage.reasoning_tokens`
+给出思考 Token 统计，且思考内容**不会**回传给模型。
 
 ## 文档
 

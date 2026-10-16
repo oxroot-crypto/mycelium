@@ -10,11 +10,12 @@ use mycelium_core::event::AgentEvent;
 use mycelium_core::{AgentConfig, AgentError};
 use mycelium_model::ModelProvider;
 use mycelium_tools::ToolRegistry;
+use mycelium_tools::policy::ToolPolicy;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use crate::builder::AgentRuntimeBuilder;
-use crate::engine::{EVENT_CHANNEL_CAPACITY, Engine};
+use crate::engine::{EVENT_CHANNEL_CAPACITY, Engine, RuntimeParts};
 use crate::hooks::RunHooks;
 use crate::run::{RunInput, RunOutcome};
 
@@ -29,6 +30,7 @@ pub struct AgentRuntime {
     config: AgentConfig,
     provider: Arc<dyn ModelProvider>,
     tools: ToolRegistry,
+    policy: Arc<dyn ToolPolicy>,
     hooks: Option<Arc<dyn RunHooks>>,
 }
 
@@ -39,17 +41,24 @@ impl AgentRuntime {
     }
 
     /// 由 [`AgentRuntimeBuilder`] 调用的内部构造。
-    pub(crate) fn from_parts(
-        config: AgentConfig,
-        provider: Arc<dyn ModelProvider>,
-        tools: ToolRegistry,
-        hooks: Option<Arc<dyn RunHooks>>,
-    ) -> Self {
+    pub(crate) fn from_parts(parts: RuntimeParts) -> Self {
         Self {
-            config,
-            provider,
-            tools,
-            hooks,
+            config: parts.config,
+            provider: parts.provider,
+            tools: parts.tools,
+            policy: parts.policy,
+            hooks: parts.hooks,
+        }
+    }
+
+    /// 克隆装配部件（供引擎 / 运行任务使用）。
+    fn parts(&self) -> RuntimeParts {
+        RuntimeParts {
+            config: self.config.clone(),
+            provider: Arc::clone(&self.provider),
+            tools: self.tools.clone(),
+            policy: Arc::clone(&self.policy),
+            hooks: self.hooks.clone(),
         }
     }
 
@@ -66,6 +75,11 @@ impl AgentRuntime {
     /// 模型提供方标识。
     pub fn provider_id(&self) -> &str {
         self.provider.id()
+    }
+
+    /// 工具权限策略。
+    pub fn policy(&self) -> &dyn ToolPolicy {
+        self.policy.as_ref()
     }
 
     /// 运行钩子（若已配置）。
@@ -133,14 +147,7 @@ impl AgentRuntime {
     /// # }
     /// ```
     pub async fn run(&self, input: RunInput) -> Result<RunOutcome, AgentError> {
-        Engine::new(
-            self.config.clone(),
-            self.provider.clone(),
-            self.tools.clone(),
-            self.hooks.clone(),
-        )
-        .run(input, None)
-        .await
+        Engine::new(self.parts()).run(input, None).await
     }
 
     /// 执行一次运行并返回事件流句柄（内部 spawn 运行任务）。
@@ -205,12 +212,7 @@ impl AgentRuntime {
     /// ```
     pub fn run_events(&self, input: RunInput) -> AgentRun {
         let (sender, receiver) = mpsc::channel(EVENT_CHANNEL_CAPACITY);
-        let engine = Engine::new(
-            self.config.clone(),
-            self.provider.clone(),
-            self.tools.clone(),
-            self.hooks.clone(),
-        );
+        let engine = Engine::new(self.parts());
         let handle = tokio::spawn(async move { engine.run(input, Some(sender)).await });
         let events: AgentEventStream =
             Box::pin(stream::unfold(receiver, |mut receiver| async move {

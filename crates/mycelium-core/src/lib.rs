@@ -36,7 +36,8 @@ pub mod tool;
 mod properties;
 
 pub use config::{
-    AgentConfig, AgentConfigBuilder, DEFAULT_MAX_STEPS, DEFAULT_REQUEST_TIMEOUT_SECS,
+    AgentConfig, AgentConfigBuilder, DEFAULT_MAX_PARALLEL_TOOL_CALLS, DEFAULT_MAX_STEPS,
+    DEFAULT_REQUEST_TIMEOUT_SECS, REASONING_EFFORT_MAX_LEN, ReasoningOptions,
 };
 pub use error::{
     AgentError, BudgetKind, ConfigError, ContentError, InvalidModelId, InvalidToolCallId,

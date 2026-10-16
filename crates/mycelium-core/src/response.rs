@@ -7,24 +7,38 @@ use serde::{Deserialize, Serialize};
 use crate::message::Message;
 
 /// Token 用量。
+///
+/// `reasoning_tokens` 为思考（推理）Token 数，语义上**包含在** `output_tokens` 内
+/// （提供方未报告时为 0）；[`Usage::total_tokens`] 不会重复累加。
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Usage {
     /// 输入 Token 数。
     pub input_tokens: u64,
     /// 输出 Token 数。
     pub output_tokens: u64,
+    /// 思考（推理）Token 数（0 = 未知或未启用思考）。
+    pub reasoning_tokens: u64,
 }
 
 impl Usage {
-    /// 构造用量统计。
+    /// 构造用量统计（`reasoning_tokens = 0`）。
     pub fn new(input_tokens: u64, output_tokens: u64) -> Self {
         Self {
             input_tokens,
             output_tokens,
+            reasoning_tokens: 0,
         }
     }
 
+    /// 设置思考 Token 数。
+    pub fn with_reasoning_tokens(mut self, reasoning_tokens: u64) -> Self {
+        self.reasoning_tokens = reasoning_tokens;
+        self
+    }
+
     /// 总 Token 数；溢出时饱和到 [`u64::MAX`]（不 panic、不回绕）。
+    ///
+    /// `reasoning_tokens` 已包含在 `output_tokens` 内，不重复累加。
     pub fn total_tokens(&self) -> u64 {
         self.input_tokens.saturating_add(self.output_tokens)
     }
@@ -67,6 +81,14 @@ mod tests {
     fn total_tokens_sums() {
         assert_eq!(Usage::new(10, 5).total_tokens(), 15);
         assert_eq!(Usage::default().total_tokens(), 0);
+    }
+
+    #[test]
+    fn reasoning_tokens_do_not_double_count() {
+        let usage = Usage::new(10, 20).with_reasoning_tokens(15);
+        assert_eq!(usage.reasoning_tokens, 15);
+        // reasoning ⊆ output，不重复累加
+        assert_eq!(usage.total_tokens(), 30);
     }
 
     #[test]

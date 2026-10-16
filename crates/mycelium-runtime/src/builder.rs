@@ -5,9 +5,11 @@ use std::sync::Arc;
 
 use mycelium_core::AgentConfig;
 use mycelium_model::ModelProvider;
+use mycelium_tools::policy::{AllowAll, ToolPolicy};
 use mycelium_tools::{RegistryError, Tool, ToolRegistry};
 
 use crate::agent::AgentRuntime;
+use crate::engine::RuntimeParts;
 use crate::hooks::RunHooks;
 
 /// 运行时构建错误。
@@ -33,6 +35,7 @@ pub struct AgentRuntimeBuilder {
     config: Option<AgentConfig>,
     provider: Option<Arc<dyn ModelProvider>>,
     tools: Vec<Arc<dyn Tool>>,
+    policy: Option<Arc<dyn ToolPolicy>>,
     hooks: Option<Arc<dyn RunHooks>>,
 }
 
@@ -67,6 +70,12 @@ impl AgentRuntimeBuilder {
         self
     }
 
+    /// 设置工具权限策略（默认 [`AllowAll`]）。
+    pub fn policy(mut self, policy: Arc<dyn ToolPolicy>) -> Self {
+        self.policy = Some(policy);
+        self
+    }
+
     /// 构建运行时。
     ///
     /// # Errors
@@ -82,9 +91,13 @@ impl AgentRuntimeBuilder {
             tools.register(tool)?;
         }
 
-        Ok(AgentRuntime::from_parts(
-            config, provider, tools, self.hooks,
-        ))
+        Ok(AgentRuntime::from_parts(RuntimeParts {
+            config,
+            provider,
+            tools,
+            policy: self.policy.unwrap_or_else(|| Arc::new(AllowAll)),
+            hooks: self.hooks,
+        }))
     }
 }
 
@@ -94,6 +107,7 @@ impl fmt::Debug for AgentRuntimeBuilder {
             .field("config", &self.config)
             .field("provider_id", &self.provider.as_ref().map(|p| p.id()))
             .field("tool_count", &self.tools.len())
+            .field("policy_configured", &self.policy.is_some())
             .field("hooks_configured", &self.hooks.is_some())
             .finish()
     }

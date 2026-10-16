@@ -21,6 +21,11 @@ pub enum ModelDelta {
         /// 增量文本。
         text: String,
     },
+    /// 思考（推理）文本增量（思考模式下由模型产出；装配为 `Thinking` 内容块）。
+    ThinkingDelta {
+        /// 增量文本。
+        text: String,
+    },
     /// 工具调用增量（可能分片）。
     ToolCallDelta {
         /// 工具调用序号（从 0 开始）。
@@ -38,6 +43,9 @@ pub enum ModelDelta {
         input_tokens: u64,
         /// 输出 Token。
         output_tokens: u64,
+        /// 思考（推理）Token 数（包含在 `output_tokens` 内；提供方未报告时为 `None`）。
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        reasoning_tokens: Option<u64>,
     },
     /// 流结束（成功时最后一项）。
     Finished {
@@ -56,6 +64,9 @@ mod tests {
             ModelDelta::TextDelta {
                 text: "hi".to_owned(),
             },
+            ModelDelta::ThinkingDelta {
+                text: "先想".to_owned(),
+            },
             ModelDelta::ToolCallDelta {
                 index: 0,
                 id: Some(ToolCallId::new("call_1").unwrap()),
@@ -71,6 +82,12 @@ mod tests {
             ModelDelta::Usage {
                 input_tokens: 10,
                 output_tokens: 5,
+                reasoning_tokens: Some(3),
+            },
+            ModelDelta::Usage {
+                input_tokens: 1,
+                output_tokens: 2,
+                reasoning_tokens: None,
             },
             ModelDelta::Finished {
                 stop_reason: StopReason::EndTurn,

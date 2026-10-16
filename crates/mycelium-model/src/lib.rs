@@ -19,5 +19,6 @@ pub use provider::{ModelCapabilities, ModelProvider, ModelStream, stream_from_de
 pub use request::ModelRequest;
 
 pub use async_trait::async_trait;
+pub use mycelium_core::config::ReasoningOptions;
 pub use mycelium_core::error::ModelError;
 pub use mycelium_core::response::{ModelResponse, StopReason, Usage};

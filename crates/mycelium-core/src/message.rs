@@ -34,6 +34,14 @@ pub enum ContentBlock {
         /// 文本内容（允许为空串）。
         text: String,
     },
+    /// 模型思考（推理）内容。
+    ///
+    /// 由思考模式下的模型产出（如 DeepSeek 的 `reasoning_content`）；
+    /// 属于**只读观测内容**，提供方适配层在回传历史时不得包含该块。
+    Thinking {
+        /// 思考文本。
+        text: String,
+    },
     /// 模型发起的工具调用。
     ToolUse {
         /// 提供方生成的调用标识。
@@ -245,5 +253,26 @@ mod tests {
                 ]
             })
         );
+    }
+
+    #[test]
+    fn thinking_block_wire_format() {
+        let message = Message::new(
+            Role::Assistant,
+            vec![ContentBlock::Thinking {
+                text: "先想一下".to_owned(),
+            }],
+        )
+        .unwrap();
+        let value = serde_json::to_value(&message).unwrap();
+        assert_eq!(
+            value,
+            json!({
+                "role": "assistant",
+                "content": [ { "type": "thinking", "text": "先想一下" } ]
+            })
+        );
+        let decoded: Message = serde_json::from_value(value).unwrap();
+        assert_eq!(decoded, message);
     }
 }

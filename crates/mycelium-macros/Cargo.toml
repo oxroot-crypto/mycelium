@@ -1,0 +1,19 @@
+[package]
+name = "mycelium-macros"
+description = 'mycelium 过程宏：#[tool] 由普通函数生成 Tool 实现与 JSON Schema'
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish.workspace = true
+
+[lib]
+proc-macro = true
+
+[lints]
+workspace = true
+
+[dependencies]
+proc-macro2 = "1"
+quote = "1"
+syn = { version = "3", features = ["full"] }

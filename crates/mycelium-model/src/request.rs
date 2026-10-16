@@ -1,6 +1,7 @@
 //! 模型请求。
 
 use mycelium_core::CancellationToken;
+use mycelium_core::config::ReasoningOptions;
 use mycelium_core::ids::ModelId;
 use mycelium_core::message::Message;
 use mycelium_core::tool::{ToolChoice, ToolSpec};
@@ -25,6 +26,8 @@ pub struct ModelRequest {
     pub max_output_tokens: Option<u64>,
     /// 采样温度（`None` 表示提供方默认）。
     pub temperature: Option<f32>,
+    /// 思考（推理）选项（`None` 表示提供方默认）。
+    pub reasoning: Option<ReasoningOptions>,
     /// 取消令牌：触发后提供方应尽快终止请求并让流以
     /// [`mycelium_core::ModelError::Cancelled`] 结束。
     pub cancel: CancellationToken,
@@ -41,6 +44,7 @@ impl ModelRequest {
             tool_choice: ToolChoice::default(),
             max_output_tokens: None,
             temperature: None,
+            reasoning: None,
             cancel: CancellationToken::new(),
         }
     }

@@ -75,7 +75,8 @@ flowchart TB
 | **Session** | 跨多轮对话的消息累积容器（当前为进程内存储，持久化在 v0.4） |
 | **Run** | 一次完整的「输入 → 模型 → 工具 → …→ 终态」执行；生命周期见 `lifecycle.md` |
 | **Step** | Run 内的一轮：一次模型请求 + 其触发的工具执行 |
-| **Message / ContentBlock** | 统一消息模型；内容块支持文本、工具调用、工具结果 |
+| **Message / ContentBlock** | 统一消息模型；内容块支持文本、思考、工具调用、工具结果 |
+| **Thinking** | 模型思考（推理）内容：只读观测，装配为 `Thinking` 块且不回传提供方 |
 | **Tool** | 模型可调用的能力单元；由 `ToolSpec`（名称 / 描述 / JSON Schema）描述 |
 | **ToolCall / ToolOutput** | 调用请求与执行结果；结果错误通过 `is_error` 回灌给模型继续推理 |
 | **ModelDelta** | 模型流式增量；装配规则见 FC-Matrix §4（Planned） |
@@ -151,8 +152,12 @@ FC-Matrix 与测试一一对应、CI 基线。
 v0.2 已完成：执行循环（顺序工具、预算、取消、超时）、流式增量装配器、工具入参 JSON Schema
 子集校验、事件发射与 `run_events` 流式 API、OpenAI 兼容 Provider（含本地 stub server 端到端测试）。
 
-尚未实现（见 roadmap）：工具并发、权限策略、时长预算、工具超时、重试策略、记忆与持久化、
-MCP 适配、完整 JSON Schema、tracing span。
+v0.3 已完成：工具并发执行与保序回灌、工具超时、权限策略层（`ToolPolicy`）、
+`#[tool]` 派生宏、MCP 客户端适配（stdio / tools）、模型思考过程支持（DeepSeek `reasoning_content`
+→ `Thinking` 块 / 事件 / `reasoning_tokens`），并通过 DeepSeek V4.1-Flash 真实联调验证。
+
+尚未实现（见 roadmap）：异步钩子、结构化工具输出、时长预算、重试策略、记忆与持久化、
+MCP 资源 / HTTP 传输、完整 JSON Schema、tracing span。
 
 - 生命周期与状态机：`docs/architecture/lifecycle.md`
 - 形式化约束矩阵：`docs/spec/core.md`

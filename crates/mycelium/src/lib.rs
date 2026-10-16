@@ -6,6 +6,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub use mycelium_core as core;
+pub use mycelium_mcp as mcp;
 pub use mycelium_model as model;
 pub use mycelium_runtime as runtime;
 pub use mycelium_tools as tools;
@@ -17,9 +18,10 @@ pub use mycelium_provider_openai as provider_openai;
 pub mod prelude {
     pub use crate::core::{
         AgentConfig, AgentError, AgentEvent, AgentEventKind, CancellationToken, ContentBlock,
-        Message, ModelError, ModelId, Role, RunEvent, RunId, RunState, SessionId, StopReason,
-        ToolCall, ToolCallId, ToolChoice, ToolError, ToolName, ToolSpec, Usage,
+        Message, ModelError, ModelId, ReasoningOptions, Role, RunEvent, RunId, RunState, SessionId,
+        StopReason, ToolCall, ToolCallId, ToolChoice, ToolError, ToolName, ToolSpec, Usage,
     };
+    pub use crate::mcp::{McpClient, McpError, McpServerInfo, McpTool};
     pub use crate::model::{
         DeltaAssembler, ModelCapabilities, ModelDelta, ModelProvider, ModelRequest, ModelResponse,
         ModelStream, async_trait, stream_from_deltas,
@@ -28,5 +30,8 @@ pub mod prelude {
         AgentEventStream, AgentRun, AgentRuntime, AgentRuntimeBuilder, BuildError, RunContext,
         RunFuture, RunHooks, RunInput, RunOutcome, Session,
     };
-    pub use crate::tools::{RegistryError, SchemaViolation, Tool, ToolContext, ToolOutput};
+    pub use crate::tools::{
+        AllowAll, AllowList, DenyList, PolicyDecision, RegistryError, SchemaViolation, Tool,
+        ToolContext, ToolOutput, ToolPolicy, validate_arguments,
+    };
 }

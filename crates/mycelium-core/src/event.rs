@@ -53,6 +53,11 @@ pub enum AgentEventKind {
         /// 增量文本。
         text: String,
     },
+    /// 模型思考（推理）文本增量。
+    ModelThinkingDelta {
+        /// 增量文本。
+        text: String,
+    },
     /// 模型产出的完整工具调用（装配完成）。
     ModelToolCall {
         /// 装配后的工具调用。
@@ -132,6 +137,9 @@ mod tests {
             AgentEventKind::ModelTextDelta {
                 text: "hel".to_owned(),
             },
+            AgentEventKind::ModelThinkingDelta {
+                text: "先想".to_owned(),
+            },
             AgentEventKind::ModelToolCall { call: tool_call() },
             AgentEventKind::ModelRequestFinished {
                 stop_reason: StopReason::ToolUse,
@@ -179,6 +187,12 @@ mod tests {
                     text: String::new(),
                 },
                 "model_text_delta",
+            ),
+            (
+                AgentEventKind::ModelThinkingDelta {
+                    text: String::new(),
+                },
+                "model_thinking_delta",
             ),
             (
                 AgentEventKind::ToolCallFinished {

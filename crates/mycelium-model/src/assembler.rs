@@ -28,6 +28,7 @@ struct ToolCallParts {
 /// [`DeltaAssembler::finish`] 取回完整响应。
 #[derive(Debug, Default)]
 pub struct DeltaAssembler {
+    thinking: String,
     text: String,
     tool_calls: BTreeMap<u32, ToolCallParts>,
     usage: Option<Usage>,
@@ -55,6 +56,7 @@ impl DeltaAssembler {
         }
         match delta {
             ModelDelta::TextDelta { text } => self.text.push_str(&text),
+            ModelDelta::ThinkingDelta { text } => self.thinking.push_str(&text),
             ModelDelta::ToolCallDelta {
                 index,
                 id,
@@ -64,11 +66,15 @@ impl DeltaAssembler {
             ModelDelta::Usage {
                 input_tokens,
                 output_tokens,
+                reasoning_tokens,
             } => {
                 if self.usage.is_some() {
                     return Err(invalid("Usage 至多出现一次"));
                 }
-                self.usage = Some(Usage::new(input_tokens, output_tokens));
+                self.usage = Some(
+                    Usage::new(input_tokens, output_tokens)
+                        .with_reasoning_tokens(reasoning_tokens.unwrap_or(0)),
+                );
             }
             ModelDelta::Finished { stop_reason } => {
                 self.stop_reason = Some(stop_reason);
@@ -135,6 +141,12 @@ impl DeltaAssembler {
             .ok_or_else(|| invalid("缺少 stop_reason（内部不变量被破坏）"))?;
 
         let mut blocks = Vec::new();
+        // 思考块位于文本块之前（推理先行，答案在后）。
+        if !self.thinking.is_empty() {
+            blocks.push(ContentBlock::Thinking {
+                text: self.thinking,
+            });
+        }
         if !self.text.is_empty() {
             blocks.push(ContentBlock::Text { text: self.text });
         }
@@ -234,6 +246,7 @@ mod tests {
             .push(ModelDelta::Usage {
                 input_tokens: 7,
                 output_tokens: 3,
+                reasoning_tokens: None,
             })
             .unwrap();
         assembler.push(finished(StopReason::EndTurn)).unwrap();
@@ -360,6 +373,7 @@ mod tests {
             .push(ModelDelta::Usage {
                 input_tokens: 1,
                 output_tokens: 1,
+                reasoning_tokens: None,
             })
             .unwrap();
         assert_invalid(
@@ -367,10 +381,70 @@ mod tests {
                 .push(ModelDelta::Usage {
                     input_tokens: 2,
                     output_tokens: 2,
+                    reasoning_tokens: Some(1),
                 })
                 .unwrap_err(),
             "Usage",
         );
+    }
+
+    #[test]
+    fn assembles_thinking_block_before_text() {
+        let mut assembler = DeltaAssembler::new();
+        assembler
+            .push(ModelDelta::ThinkingDelta {
+                text: "先想".to_owned(),
+            })
+            .unwrap();
+        assembler
+            .push(ModelDelta::ThinkingDelta {
+                text: "一下".to_owned(),
+            })
+            .unwrap();
+        assembler.push(text_delta("答案")).unwrap();
+        assembler.push(finished(StopReason::EndTurn)).unwrap();
+
+        let response = assembler.finish().unwrap();
+        assert_eq!(
+            response.message.content(),
+            &[
+                ContentBlock::Thinking {
+                    text: "先想一下".to_owned()
+                },
+                ContentBlock::Text {
+                    text: "答案".to_owned()
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn usage_reasoning_tokens_propagate() {
+        let mut assembler = DeltaAssembler::new();
+        assembler
+            .push(ModelDelta::Usage {
+                input_tokens: 10,
+                output_tokens: 20,
+                reasoning_tokens: Some(15),
+            })
+            .unwrap();
+        assembler.push(finished(StopReason::EndTurn)).unwrap();
+        assert_eq!(
+            assembler.finish().unwrap().usage,
+            Usage::new(10, 20).with_reasoning_tokens(15)
+        );
+
+        // 提供方未报告 → 0
+        let mut assembler = DeltaAssembler::new();
+        assembler
+            .push(ModelDelta::Usage {
+                input_tokens: 1,
+                output_tokens: 2,
+                reasoning_tokens: None,
+            })
+            .unwrap();
+        assembler.push(finished(StopReason::EndTurn)).unwrap();
+        assert_eq!(assembler.finish().unwrap().usage.reasoning_tokens, 0);
     }
 
     #[test]

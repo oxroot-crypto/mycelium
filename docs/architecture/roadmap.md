@@ -25,14 +25,19 @@
 - [x] 工具入参 schema 校验（`ToolError::InvalidArguments`；JSON Schema 子集）
 - [x] tracing 埋点（事件级；run_id / step / 工具名）与脚本化 mock provider 集成测试
 
-## v0.3 策略与生态
+## v0.3 策略与生态 — 已完成（2026-10-16）
 
-- [ ] 工具并发执行（`join_all`，回灌顺序与调用顺序一致）
-- [ ] 权限策略层（审批回调、allow/deny 列表；`ToolError::Denied`）
-- [ ] 异步钩子（`RunHooks` 支持异步拦截与改写）与指标导出
-- [ ] `#[tool]` derive 宏（由函数签名生成 `ToolSpec`）
-- [ ] MCP 客户端适配（把 MCP server 工具接入 `ToolRegistry`）
-- [ ] 结构化工具输出（多内容块，图片等）
+- [x] 工具并发执行（`max_parallel_tool_calls`；`buffered` 保序回灌；事件发射串行化）
+- [x] 工具超时（`tool_timeout` → `ToolError::Timeout` 错误结果回灌）
+- [x] 权限策略层（`ToolPolicy` SPI + `AllowAll` / `DenyList` / `AllowList`；`Deny` 不执行并回灌原因）
+- [x] `#[tool]` derive 宏（`mycelium-macros`：函数 → `Tool` 实现 + JSON Schema，编译期校验）
+- [x] MCP 客户端适配（`mycelium-mcp`：stdio JSON-RPC、分页 `tools/list`、`tools/call`、代理进 `ToolRegistry`）
+- [x] 模型思考过程支持（`Thinking` 内容块 / `ModelThinkingDelta` 事件 / `reasoning_tokens` / `thinking` 与
+  `reasoning_effort` 请求参数；DeepSeek V4.1-Flash 真实联调验证）
+- [x] 真实模型联调（DeepSeek `deepseek-flash`：纯文本、工具往返、流式事件、思考链）
+- [ ] 异步钩子（`RunHooks` 异步化）与指标导出 → v0.3.1（RFC：公开 API 破坏性变更）
+- [ ] 结构化工具输出（多内容块、图片）→ v0.3.1（wire 格式破坏性变更）
+- [ ] MCP 资源 / 提示模板 / HTTP 传输 → v0.4
 
 ## v0.4 持久化与多 Agent
 
