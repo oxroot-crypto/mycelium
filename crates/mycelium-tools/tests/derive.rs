@@ -87,7 +87,7 @@ async fn executes_async_function() {
         .call(&context(), serde_json::json!({"a": 21, "b": 21}))
         .await
         .unwrap();
-    assert_eq!(output.content(), "42");
+    assert_eq!(output.text(), "42");
     assert!(!output.is_error());
 
     // Option 参数缺省
@@ -95,7 +95,7 @@ async fn executes_async_function() {
         .call(&context(), serde_json::json!({"path": "p"}))
         .await
         .unwrap();
-    assert_eq!(output.content(), "p:16");
+    assert_eq!(output.text(), "p:16");
 }
 
 #[tokio::test]
@@ -104,7 +104,7 @@ async fn executes_sync_function() {
         .call(&context(), serde_json::json!({"x": 3}))
         .await
         .unwrap();
-    assert_eq!(output.content(), "6");
+    assert_eq!(output.text(), "6");
 }
 
 #[tokio::test]
@@ -114,14 +114,14 @@ async fn string_and_tool_output_passthrough() {
         .call(&context(), serde_json::json!({"path": "a", "max_bytes": 8}))
         .await
         .unwrap();
-    assert_eq!(output.content(), "a:8");
+    assert_eq!(output.text(), "a:8");
 
     // ToolOutput 直传
     let output = raw_tool()
         .call(&context(), serde_json::json!({"text": "hello"}))
         .await
         .unwrap();
-    assert_eq!(output.content(), "hello");
+    assert_eq!(output.text(), "hello");
 }
 
 #[tokio::test]

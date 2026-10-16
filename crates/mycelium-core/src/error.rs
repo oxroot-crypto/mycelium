@@ -97,6 +97,23 @@ pub enum ConfigError {
     /// `tool_timeout` 为 0。
     #[error("tool_timeout 必须 > 0（或省略表示不限制）")]
     ZeroToolTimeout,
+    /// `max_duration` 为 0。
+    #[error("max_duration 必须 > 0（或省略表示不限制）")]
+    ZeroMaxDuration,
+    /// 重试次数为 0。
+    #[error("retry.max_attempts 必须 >= 1")]
+    ZeroRetryAttempts,
+    /// 重试退避时长为 0。
+    #[error("retry 退避时长必须 > 0")]
+    ZeroRetryBackoff,
+    /// 重试退避顺序非法。
+    #[error("retry 退避顺序非法：initial({initial_ms}ms) > max({max_ms}ms)")]
+    InvalidRetryBackoff {
+        /// 初始退避（毫秒）。
+        initial_ms: u64,
+        /// 退避上限（毫秒）。
+        max_ms: u64,
+    },
     /// `reasoning.effort` 非法。
     #[error(
         "reasoning_effort 必须为 1..=32 个 ASCII 字母 / 数字 / 下划线 / 连字符，实际为 {value:?}"

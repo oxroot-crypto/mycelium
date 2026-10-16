@@ -37,7 +37,8 @@ mod properties;
 
 pub use config::{
     AgentConfig, AgentConfigBuilder, DEFAULT_MAX_PARALLEL_TOOL_CALLS, DEFAULT_MAX_STEPS,
-    DEFAULT_REQUEST_TIMEOUT_SECS, REASONING_EFFORT_MAX_LEN, ReasoningOptions,
+    DEFAULT_REQUEST_TIMEOUT_SECS, DEFAULT_RETRY_INITIAL_BACKOFF_MS, DEFAULT_RETRY_MAX_BACKOFF_MS,
+    REASONING_EFFORT_MAX_LEN, ReasoningOptions, RetryPolicy,
 };
 pub use error::{
     AgentError, BudgetKind, ConfigError, ContentError, InvalidModelId, InvalidToolCallId,
@@ -45,7 +46,7 @@ pub use error::{
 };
 pub use event::{AgentEvent, AgentEventKind};
 pub use ids::{ModelId, RunId, SessionId, ToolCallId, ToolName};
-pub use message::{ContentBlock, Message, Role};
+pub use message::{ContentBlock, Message, Role, ToolResultBlock};
 pub use response::{ModelResponse, StopReason, Usage};
 pub use run::{InvalidRunTransition, RunEvent, RunState};
 pub use tool::{ToolCall, ToolChoice, ToolSpec};

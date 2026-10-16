@@ -11,6 +11,7 @@ use tokio::io::{AsyncBufReadExt, AsyncRead, AsyncWrite, AsyncWriteExt, BufReader
 use tokio::sync::{Mutex, oneshot};
 
 use mycelium_core::ids::ToolName;
+use mycelium_core::message::ToolResultBlock;
 use mycelium_core::tool::ToolSpec;
 use mycelium_tools::{Tool, ToolOutput};
 
@@ -239,7 +240,8 @@ impl McpClient {
 
     /// 调用服务端工具。
     ///
-    /// 语义：`content` 数组中 `type == "text"` 的块按序拼接（换行分隔）为结果文本；
+    /// 语义：`content` 数组的 `text` / `image`（`mimeType` + `data`）块一一映射为
+    /// [`ToolResultBlock`]；未知类型与缺字段块忽略（防御式，不因单块异常而失败）；
     /// `isError: true` 映射为错误结果（回灌模型，不终止运行）。
     ///
     /// # Errors
@@ -260,23 +262,37 @@ impl McpClient {
             .get("isError")
             .and_then(Value::as_bool)
             .unwrap_or(false);
-        let mut text = String::new();
-        if let Some(blocks) = result.get("content").and_then(Value::as_array) {
-            for block in blocks {
-                if block.get("type").and_then(Value::as_str) == Some("text")
-                    && let Some(part) = block.get("text").and_then(Value::as_str)
-                {
-                    if !text.is_empty() {
-                        text.push('\n');
+        let mut blocks = Vec::new();
+        if let Some(items) = result.get("content").and_then(Value::as_array) {
+            for item in items {
+                match item.get("type").and_then(Value::as_str) {
+                    Some("text") => {
+                        if let Some(text) = item.get("text").and_then(Value::as_str) {
+                            blocks.push(ToolResultBlock::Text {
+                                text: text.to_owned(),
+                            });
+                        }
                     }
-                    text.push_str(part);
+                    Some("image") => {
+                        if let (Some(media_type), Some(data)) = (
+                            item.get("mimeType").and_then(Value::as_str),
+                            item.get("data").and_then(Value::as_str),
+                        ) {
+                            blocks.push(ToolResultBlock::Image {
+                                media_type: media_type.to_owned(),
+                                data: data.to_owned(),
+                            });
+                        }
+                    }
+                    // 其它类型（audio / resource）当前忽略，计划随 MCP 资源能力扩展。
+                    _ => {}
                 }
             }
         }
         Ok(if is_error {
-            ToolOutput::error(text)
+            ToolOutput::error_blocks(blocks)
         } else {
-            ToolOutput::success(text)
+            ToolOutput::blocks(blocks)
         })
     }
 

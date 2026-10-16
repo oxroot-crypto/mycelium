@@ -18,13 +18,14 @@ pub use mycelium_provider_openai as provider_openai;
 pub mod prelude {
     pub use crate::core::{
         AgentConfig, AgentError, AgentEvent, AgentEventKind, CancellationToken, ContentBlock,
-        Message, ModelError, ModelId, ReasoningOptions, Role, RunEvent, RunId, RunState, SessionId,
-        StopReason, ToolCall, ToolCallId, ToolChoice, ToolError, ToolName, ToolSpec, Usage,
+        Message, ModelError, ModelId, ReasoningOptions, RetryPolicy, Role, RunEvent, RunId,
+        RunState, SessionId, StopReason, ToolCall, ToolCallId, ToolChoice, ToolError, ToolName,
+        ToolResultBlock, ToolSpec, Usage,
     };
     pub use crate::mcp::{McpClient, McpError, McpServerInfo, McpTool};
     pub use crate::model::{
-        DeltaAssembler, ModelCapabilities, ModelDelta, ModelProvider, ModelRequest, ModelResponse,
-        ModelStream, async_trait, stream_from_deltas,
+        DeltaAssembler, FallbackError, FallbackProvider, ModelCapabilities, ModelDelta,
+        ModelProvider, ModelRequest, ModelResponse, ModelStream, async_trait, stream_from_deltas,
     };
     pub use crate::runtime::{
         AgentEventStream, AgentRun, AgentRuntime, AgentRuntimeBuilder, BuildError, RunContext,

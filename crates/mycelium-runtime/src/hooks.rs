@@ -1,5 +1,6 @@
-//! 运行钩子（同步观察者扩展点）。
+//! 运行钩子（异步观察者扩展点，RFC-0001）。
 
+use async_trait::async_trait;
 use mycelium_core::{AgentError, CancellationToken, RunId, ToolCall};
 
 use crate::run::RunOutcome;
@@ -15,20 +16,23 @@ pub struct RunContext {
 
 /// 运行钩子。
 ///
-/// 语义：
+/// 语义（v0.4 起异步化，见 `docs/architecture/rfc/0001-async-hooks.md`）：
 /// - 全部方法都有默认空实现，按需覆写；
-/// - 在运行线程上**同步**调用，实现不得阻塞等待（耗时操作请自行投递到任务队列）；
-/// - 钩子不得 panic；内部异常应自行记录，不得影响运行正确性。
+/// - 回调在运行任务内 `await`，允许非阻塞异步 I/O（审计上报、指标推送等）；
+/// - 回调查**不得永不完成**：应尊重 [`RunContext::cancel`] 或自行设置超时；
+/// - 钩子不得影响运行正确性：内部错误应自行记录，运行不会因钩子失败而失败；
+/// - 「拦截与改写」不在本版本范围内（后续 RFC）。
+#[async_trait]
 pub trait RunHooks: Send + Sync + 'static {
     /// 运行开始。
-    fn on_run_start(&self, _context: &RunContext) {}
+    async fn on_run_start(&self, _context: &RunContext) {}
 
     /// 单步开始（`step` 从 1 起连续递增）。
-    fn on_step_start(&self, _context: &RunContext, _step: u32) {}
+    async fn on_step_start(&self, _context: &RunContext, _step: u32) {}
 
-    /// 工具调用完成（成功与错误结果均触发）。
-    fn on_tool_call(&self, _context: &RunContext, _call: &ToolCall) {}
+    /// 工具调用完成（成功与错误结果均触发；并发模式下按完成顺序）。
+    async fn on_tool_call(&self, _context: &RunContext, _call: &ToolCall) {}
 
     /// 运行结束（成功携带结果；失败携带错误引用）。
-    fn on_run_end(&self, _context: &RunContext, _result: Result<&RunOutcome, &AgentError>) {}
+    async fn on_run_end(&self, _context: &RunContext, _result: Result<&RunOutcome, &AgentError>) {}
 }

@@ -10,11 +10,13 @@
 
 pub mod assembler;
 pub mod delta;
+pub mod fallback;
 pub mod provider;
 pub mod request;
 
 pub use assembler::DeltaAssembler;
 pub use delta::ModelDelta;
+pub use fallback::{FallbackError, FallbackProvider};
 pub use provider::{ModelCapabilities, ModelProvider, ModelStream, stream_from_deltas};
 pub use request::ModelRequest;
 

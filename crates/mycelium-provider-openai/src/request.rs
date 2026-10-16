@@ -2,7 +2,7 @@
 
 use serde_json::{Map, Value, json};
 
-use mycelium_core::message::{ContentBlock, Message, Role};
+use mycelium_core::message::{ContentBlock, Message, Role, ToolResultBlock};
 use mycelium_core::tool::ToolChoice;
 use mycelium_model::ModelRequest;
 
@@ -99,7 +99,7 @@ fn map_message(message: &Message) -> Vec<Value> {
             } => tool_results.push(json!({
                 "role": "tool",
                 "tool_call_id": tool_call_id.as_str(),
-                "content": content,
+                "content": flatten_tool_content(content),
             })),
         }
     }
@@ -150,6 +150,19 @@ fn map_tool_choice(choice: &ToolChoice) -> Value {
             json!({ "type": "function", "function": { "name": name.as_str() } })
         }
     }
+}
+
+/// 工具结果内容展平为字符串（OpenAI 兼容协议的工具消息仅支持文本；
+/// 图片降级为 `[image: <media_type>]` 占位，原始数据不进入请求体）。
+fn flatten_tool_content(blocks: &[ToolResultBlock]) -> String {
+    let mut parts: Vec<String> = Vec::with_capacity(blocks.len());
+    for block in blocks {
+        parts.push(match block {
+            ToolResultBlock::Text { text } => text.clone(),
+            ToolResultBlock::Image { media_type, .. } => format!("[image: {media_type}]"),
+        });
+    }
+    parts.join("\n")
 }
 
 #[cfg(test)]
@@ -316,5 +329,29 @@ mod tests {
         // 思考内容不回传给提供方（DeepSeek 契约：reasoning_content 仅出站）
         assert!(!serialized.contains("内部推理"));
         assert_eq!(body["messages"][0]["content"], json!("答案"));
+    }
+
+    #[test]
+    fn flattens_structured_tool_results() {
+        let request = request_with(vec![Message::tool_result_blocks(
+            ToolCallId::new("c1").unwrap(),
+            vec![
+                ToolResultBlock::Text {
+                    text: "截图如下".to_owned(),
+                },
+                ToolResultBlock::Image {
+                    media_type: "image/png".to_owned(),
+                    data: "aGVsbG8=".to_owned(),
+                },
+            ],
+            false,
+        )]);
+        let body = build_chat_request(&request);
+        // 文本直传、图片降级为占位符；原始数据不进入请求体
+        assert_eq!(
+            body["messages"][0]["content"],
+            json!("截图如下\n[image: image/png]")
+        );
+        assert!(!body["messages"][0].to_string().contains("aGVsbG8="));
     }
 }

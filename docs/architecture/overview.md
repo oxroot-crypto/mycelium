@@ -88,11 +88,14 @@ flowchart TB
 - 单次 Run 执行在独立 tokio 任务中，`run_id` 贯穿所有事件与日志；
 - 主循环：请求模型（流式装配）→ 顺序执行工具 → 结果回灌 → 直至无工具调用或到达预算上限；
 - 工具执行 v0.2 为顺序执行（结果顺序与调用顺序一致），v0.3 引入可配置并发；
-- 取消：`RunInput.cancel` 触发后传播到在途模型流与工具执行，Run 进入 `Cancelled`；
-- 超时：模型请求超时由 `AgentConfig::request_timeout` 控制；工具超时由策略层在 v0.3 引入；
-- 预算：步数 / 输出 Token 已实现（时长预算见 roadmap）；
+- 取消：`RunInput.cancel` 触发后传播到在途模型流、工具执行与重试退避，Run 进入 `Cancelled`；
+- 超时：模型请求超时由 `AgentConfig::request_timeout` 控制；工具超时由 `AgentConfig::tool_timeout` 控制；
+- 重试：可重试模型错误按 `AgentConfig::retry`（`RetryPolicy`）指数退避自动重试，
+  发射 `ModelRetry` 事件；退避等待可被取消打断；多 Provider 场景可用
+  `FallbackProvider` 按序降级；
+- 预算：步数 / 输出 Token / 时长（`max_duration`）三类预算，超限停止发起新请求；
 - 事件：Run 内 `seq` 从 0 连续递增；终态事件唯一（见 `lifecycle.md` §5，已测试）；
-- 事件为可选观测面：`run_events` 返回流式事件；`RunHooks` 提供同步回调。
+- 事件为可选观测面：`run_events` 返回流式事件；`RunHooks` 提供异步回调（RFC-0001）。
 
 ## 7. 扩展点（SPI）
 
@@ -124,7 +127,7 @@ flowchart TB
 | 依赖 | 使用范围 | 理由 |
 | :--- | :--- | :--- |
 | `serde` / `serde_json` | core / model / tools / provider | wire 格式与 JSON Schema 的生态标准，无可行替代 |
-| `thiserror` | core / tools / runtime / provider | 错误枚举样板，编译期展开、零运行时开销 |
+| `thiserror` | core / model / tools / mcp / runtime / provider | 错误枚举样板，编译期展开、零运行时开销 |
 | `async-trait` | model / tools | stable 上对象安全异步 trait 的标准做法（`Arc<dyn Tool>` 要求 dyn 兼容） |
 | `uuid`（v7） | core | 时间有序 ID，便于持久化与排序 |
 | `tokio` / `tokio-util` | runtime / provider（及测试） | 栈基线决策；`CancellationToken` 作为统一取消原语 |
@@ -157,8 +160,11 @@ v0.3 已完成：工具并发执行与保序回灌、工具超时、权限策略
 `#[tool]` 派生宏、MCP 客户端适配（stdio / tools）、模型思考过程支持（DeepSeek `reasoning_content`
 → `Thinking` 块 / 事件 / `reasoning_tokens`），并通过 DeepSeek V4.1-Flash 真实联调验证。
 
-尚未实现（见 roadmap）：异步钩子、结构化工具输出、时长预算、重试策略、记忆与持久化、
-MCP 资源 / HTTP 传输、完整 JSON Schema、tracing span。
+v0.4 已完成第一批：结构化工具结果（图文多内容块，RFC-0002）、异步钩子（RFC-0001）、
+重试策略与 `ModelRetry` 事件、多 Provider 降级（`FallbackProvider`）、时长预算、MSRV CI。
+
+尚未实现（见 roadmap）：会话持久化、子 Agent 编排、长期记忆、MCP 资源 / HTTP 传输、
+完整 JSON Schema、tracing span、cargo-mutants / cargo-deny。
 
 - 生命周期与状态机：`docs/architecture/lifecycle.md`
 - 形式化约束矩阵：`docs/spec/core.md`

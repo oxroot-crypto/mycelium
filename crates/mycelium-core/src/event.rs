@@ -58,6 +58,15 @@ pub enum AgentEventKind {
         /// 增量文本。
         text: String,
     },
+    /// 模型请求即将重试（可重试错误 + 策略允许）。
+    ModelRetry {
+        /// 已失败的尝试序号（1 起）。
+        attempt: u32,
+        /// 退避时长（毫秒）。
+        delay_ms: u64,
+        /// 失败原因（人类可读）。
+        reason: String,
+    },
     /// 模型产出的完整工具调用（装配完成）。
     ModelToolCall {
         /// 装配后的工具调用。
@@ -139,6 +148,11 @@ mod tests {
             },
             AgentEventKind::ModelThinkingDelta {
                 text: "先想".to_owned(),
+            },
+            AgentEventKind::ModelRetry {
+                attempt: 1,
+                delay_ms: 500,
+                reason: "transport".to_owned(),
             },
             AgentEventKind::ModelToolCall { call: tool_call() },
             AgentEventKind::ModelRequestFinished {

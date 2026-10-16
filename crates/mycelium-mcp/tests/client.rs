@@ -6,6 +6,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 use mycelium_core::ids::ToolName;
+use mycelium_core::message::ToolResultBlock;
 use mycelium_core::tool::ToolSpec;
 use mycelium_mcp::{McpClient, McpError};
 use mycelium_tools::ToolRegistry;
@@ -71,14 +72,24 @@ fn standard_response(message: &Value) -> Option<Value> {
                 .pointer("/params/name")
                 .and_then(Value::as_str)
                 .unwrap_or_default();
-            let result = if tool == "boom" {
-                json!({ "content": [{ "type": "text", "text": "出错了" }], "isError": true })
-            } else {
-                let text = message
-                    .pointer("/params/arguments/text")
-                    .and_then(Value::as_str)
-                    .unwrap_or_default();
-                json!({ "content": [{ "type": "text", "text": format!("echo:{text}") }] })
+            let result = match tool {
+                "boom" => {
+                    json!({ "content": [{ "type": "text", "text": "出错了" }], "isError": true })
+                }
+                "image" => json!({
+                    "content": [
+                        { "type": "text", "text": "图片" },
+                        { "type": "image", "mimeType": "image/png", "data": "aGVsbG8=" },
+                        { "type": "audio", "data": "ignored" }
+                    ]
+                }),
+                _ => {
+                    let text = message
+                        .pointer("/params/arguments/text")
+                        .and_then(Value::as_str)
+                        .unwrap_or_default();
+                    json!({ "content": [{ "type": "text", "text": format!("echo:{text}") }] })
+                }
             };
             Some(json!({ "jsonrpc": "2.0", "id": id, "result": result }))
         }
@@ -200,7 +211,7 @@ async fn call_tool_maps_text_content() {
         .call_tool(&ToolName::new("echo").unwrap(), json!({ "text": "hi" }))
         .await
         .unwrap();
-    assert_eq!(output.content(), "echo:hi");
+    assert_eq!(output.text(), "echo:hi");
     assert!(!output.is_error());
     drop(client);
     let _ = server.await;
@@ -214,7 +225,28 @@ async fn call_tool_maps_error_flag() {
         .await
         .unwrap();
     assert!(output.is_error());
-    assert_eq!(output.content(), "出错了");
+    assert_eq!(output.text(), "出错了");
+    drop(client);
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn call_tool_maps_structured_content() {
+    let (client, server) = connect(standard_response).await;
+    let output = client
+        .call_tool(&ToolName::new("image").unwrap(), json!({}))
+        .await
+        .unwrap();
+    assert!(!output.is_error());
+    let blocks = output.content_blocks();
+    // text + image 一一映射；audio 等未知类型忽略
+    assert_eq!(blocks.len(), 2);
+    assert!(matches!(&blocks[0], ToolResultBlock::Text { text } if text == "图片"));
+    assert!(matches!(
+        &blocks[1],
+        ToolResultBlock::Image { media_type, data }
+            if media_type == "image/png" && data == "aGVsbG8="
+    ));
     drop(client);
     let _ = server.await;
 }
@@ -285,7 +317,7 @@ async fn mcp_tools_register_into_registry() {
         )
         .await
         .unwrap();
-    assert_eq!(output.content(), "echo:via-registry");
+    assert_eq!(output.text(), "echo:via-registry");
 
     // 释放全部持有 `Arc<McpClient>` 的句柄（工具依赖客户端，RAII 语义）
     drop(echo);

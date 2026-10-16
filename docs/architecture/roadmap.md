@@ -35,14 +35,17 @@
 - [x] 模型思考过程支持（`Thinking` 内容块 / `ModelThinkingDelta` 事件 / `reasoning_tokens` / `thinking` 与
   `reasoning_effort` 请求参数；DeepSeek V4.1-Flash 真实联调验证）
 - [x] 真实模型联调（DeepSeek `deepseek-flash`：纯文本、工具往返、流式事件、思考链）
-- [ ] 异步钩子（`RunHooks` 异步化）与指标导出 → v0.3.1（RFC：公开 API 破坏性变更）
-- [ ] 结构化工具输出（多内容块、图片）→ v0.3.1（wire 格式破坏性变更）
-- [ ] MCP 资源 / 提示模板 / HTTP 传输 → v0.4
+- [x] 异步钩子（`RunHooks` 异步化，RFC-0001）—— 随 v0.4.0 发布
+- [x] 结构化工具输出（多内容块 / 图片，RFC-0002）—— 随 v0.4.0 发布
+- [ ] MCP 资源 / 提示模板 / HTTP 传输 → v0.4（进行中）
 
-## v0.4 持久化与多 Agent
+## v0.4 持久化与多 Agent — 进行中（2026-10-16 交付第一批）
 
+- [x] 重试策略（`RetryPolicy`：可重试错误 + 指数退避 + `ModelRetry` 事件；退避可取消）
+- [x] 多 Provider 降级（`FallbackProvider`：可重试错误按序降级，不可重试立即返回）
+- [x] 时长预算（`BudgetKind::DurationMs`）
+- [x] MSRV CI job（1.97.0 `cargo check`）
 - [ ] `Session` 持久化 trait（存储后端可插拔）与恢复
-- [ ] 多 Provider 路由与降级（`is_retryable` + 重试策略）
 - [ ] 子 Agent / 任务编排（工具化的 agent-as-tool）
 - [ ] 长期记忆接口（向量检索等由生态实现）
 
@@ -54,7 +57,7 @@
 
 ## 工程化 backlog
 
+- [x] MSRV CI job（1.97.0 `cargo check --workspace --all-features`）
 - [ ] `cargo-mutants` 接入 CI（自动化变异测试，替代手工证伪抽查）
-- [ ] MSRV CI job（`rust-version` 验证矩阵）
 - [ ] `cargo-deny`（依赖许可证与安全公告审计）
 - [ ] 文档站点（mdBook / docs.rs 徽章）

@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+use mycelium_core::message::ToolResultBlock;
 use mycelium_core::{AgentError, StopReason, ToolError, ToolName, ToolSpec};
 use mycelium_model::{
     ModelCapabilities, ModelDelta, ModelError, ModelProvider, ModelRequest, ModelStream,
@@ -350,22 +351,100 @@ impl RecordingHooks {
     }
 }
 
+#[async_trait]
 impl RunHooks for RecordingHooks {
-    fn on_run_start(&self, _context: &RunContext) {
+    async fn on_run_start(&self, _context: &RunContext) {
         self.record("run_start");
     }
 
-    fn on_step_start(&self, _context: &RunContext, step: u32) {
+    async fn on_step_start(&self, _context: &RunContext, step: u32) {
         self.record(format!("step_start:{step}"));
     }
 
-    fn on_tool_call(&self, _context: &RunContext, call: &mycelium_core::ToolCall) {
+    async fn on_tool_call(&self, _context: &RunContext, call: &mycelium_core::ToolCall) {
         self.record(format!("tool_call:{}", call.name));
     }
 
-    fn on_run_end(&self, _context: &RunContext, _result: Result<&RunOutcome, &AgentError>) {
+    async fn on_run_end(&self, _context: &RunContext, _result: Result<&RunOutcome, &AgentError>) {
         self.record(format!("run_end:{}", _result.is_ok()));
     }
+}
+
+/// 异步钩子：回调内执行异步 I/O（sleep）后记录顺序（FC-POST-170）。
+#[derive(Default)]
+pub(crate) struct AsyncRecordingHooks {
+    calls: Mutex<Vec<String>>,
+}
+
+impl AsyncRecordingHooks {
+    /// 返回已记录的回调序列。
+    pub(crate) fn calls(&self) -> Vec<String> {
+        self.calls.lock().expect("锁未被毒化").clone()
+    }
+
+    /// 追加一条记录。
+    fn record(&self, entry: impl Into<String>) {
+        self.calls.lock().expect("锁未被毒化").push(entry.into());
+    }
+}
+
+#[async_trait]
+impl RunHooks for AsyncRecordingHooks {
+    async fn on_run_start(&self, _context: &RunContext) {
+        // 证明回调可以执行真实异步 I/O 而不阻塞运行语义。
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        self.record("run_start");
+    }
+
+    async fn on_step_start(&self, _context: &RunContext, step: u32) {
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        self.record(format!("step_start:{step}"));
+    }
+
+    async fn on_tool_call(&self, _context: &RunContext, call: &mycelium_core::ToolCall) {
+        self.record(format!("tool_call:{}", call.name));
+    }
+
+    async fn on_run_end(&self, _context: &RunContext, _result: Result<&RunOutcome, &AgentError>) {
+        tokio::time::sleep(Duration::from_millis(1)).await;
+        self.record(format!("run_end:{}", _result.is_ok()));
+    }
+}
+
+/// 返回文本 + 图片块的工具（结构化输出测试，RFC-0002）。
+pub(crate) struct StructuredTool;
+
+#[async_trait]
+impl Tool for StructuredTool {
+    fn spec(&self) -> ToolSpec {
+        ToolSpec::new(
+            ToolName::new("screenshot").expect("合法工具名"),
+            "返回文本与图片块",
+            serde_json::json!({ "type": "object" }),
+        )
+        .expect("合法 schema")
+    }
+
+    async fn call(
+        &self,
+        _context: &ToolContext,
+        _arguments: serde_json::Value,
+    ) -> Result<ToolOutput, ToolError> {
+        Ok(ToolOutput::blocks(vec![
+            ToolResultBlock::Text {
+                text: "截图如下".to_owned(),
+            },
+            ToolResultBlock::Image {
+                media_type: "image/png".to_owned(),
+                data: "aGVsbG8=".to_owned(),
+            },
+        ]))
+    }
+}
+
+/// 返回共享的结构化输出工具。
+pub(crate) fn structured_tool() -> Arc<dyn Tool> {
+    Arc::new(StructuredTool)
 }
 
 /// 固定产出 "pong" 文本流的桩提供方（API 冒烟测试用）。

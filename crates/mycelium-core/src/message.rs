@@ -22,9 +22,27 @@ pub enum Role {
     Tool,
 }
 
+/// 工具结果内容块（RFC-0002）。
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum ToolResultBlock {
+    /// 文本块（允许为空串）。
+    Text {
+        /// 文本内容。
+        text: String,
+    },
+    /// 图片块（base64 数据）。
+    Image {
+        /// MIME 类型（如 `image/png`）。
+        media_type: String,
+        /// base64 编码的数据。
+        data: String,
+    },
+}
+
 /// 内容块。
 ///
-/// wire 格式以 `type` 字段区分变体；`text` / `tool_use` / `tool_result` 为稳定标签，
+/// wire 格式以 `type` 字段区分变体；`text` / `thinking` / `tool_use` / `tool_result` 为稳定标签，
 /// 增删或重命名属于破坏性变更（见 FC-Matrix §5）。
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -55,8 +73,8 @@ pub enum ContentBlock {
     ToolResult {
         /// 对应的工具调用标识。
         tool_call_id: ToolCallId,
-        /// 结果文本。
-        content: String,
+        /// 结果内容块（工具层保证非空；此处允许空数组以兼容外部数据）。
+        content: Vec<ToolResultBlock>,
         /// 是否为错误结果。
         is_error: bool,
     },
@@ -98,7 +116,7 @@ impl Message {
         Self::text(Role::Assistant, text)
     }
 
-    /// 构造工具结果消息（`Role::Tool` + 单 `ToolResult` 块）。
+    /// 构造工具结果消息（单文本块）。
     ///
     /// # Arguments
     /// * `tool_call_id` - 对应的工具调用标识。
@@ -109,11 +127,31 @@ impl Message {
         content: impl Into<String>,
         is_error: bool,
     ) -> Self {
+        Self::tool_result_blocks(
+            tool_call_id,
+            vec![ToolResultBlock::Text {
+                text: content.into(),
+            }],
+            is_error,
+        )
+    }
+
+    /// 构造工具结果消息（多内容块，RFC-0002）。
+    ///
+    /// # Arguments
+    /// * `tool_call_id` - 对应的工具调用标识。
+    /// * `content` - 结果内容块（工具层保证非空）。
+    /// * `is_error` - 是否为错误结果。
+    pub fn tool_result_blocks(
+        tool_call_id: ToolCallId,
+        content: Vec<ToolResultBlock>,
+        is_error: bool,
+    ) -> Self {
         Self {
             role: Role::Tool,
             content: vec![ContentBlock::ToolResult {
                 tool_call_id,
-                content: content.into(),
+                content,
                 is_error,
             }],
         }
@@ -230,10 +268,47 @@ mod tests {
             message.content(),
             &[ContentBlock::ToolResult {
                 tool_call_id: id,
-                content: "boom".to_owned(),
+                content: vec![ToolResultBlock::Text {
+                    text: "boom".to_owned()
+                }],
                 is_error: true,
             }]
         );
+    }
+
+    #[test]
+    fn tool_result_blocks_wire_format() {
+        let message = Message::tool_result_blocks(
+            ToolCallId::new("c1").unwrap(),
+            vec![
+                ToolResultBlock::Text {
+                    text: "截图如下".to_owned(),
+                },
+                ToolResultBlock::Image {
+                    media_type: "image/png".to_owned(),
+                    data: "aGVsbG8=".to_owned(),
+                },
+            ],
+            false,
+        );
+        let value = serde_json::to_value(&message).unwrap();
+        assert_eq!(
+            value,
+            json!({
+                "role": "tool",
+                "content": [{
+                    "type": "tool_result",
+                    "tool_call_id": "c1",
+                    "is_error": false,
+                    "content": [
+                        { "type": "text", "text": "截图如下" },
+                        { "type": "image", "media_type": "image/png", "data": "aGVsbG8=" }
+                    ]
+                }]
+            })
+        );
+        let decoded: Message = serde_json::from_value(value).unwrap();
+        assert_eq!(decoded, message);
     }
 
     #[test]
@@ -248,9 +323,12 @@ mod tests {
             value,
             json!({
                 "role": "tool",
-                "content": [
-                    { "type": "tool_result", "tool_call_id": "c1", "content": "ok", "is_error": false }
-                ]
+                "content": [{
+                    "type": "tool_result",
+                    "tool_call_id": "c1",
+                    "is_error": false,
+                    "content": [ { "type": "text", "text": "ok" } ]
+                }]
             })
         );
     }

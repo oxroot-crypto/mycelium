@@ -28,6 +28,91 @@ pub const TEMPERATURE_MAX: f32 = 2.0;
 /// `reasoning.effort` 允许的最大长度（字符）。
 pub const REASONING_EFFORT_MAX_LEN: usize = 32;
 
+/// 默认首次重试退避（毫秒）。
+pub const DEFAULT_RETRY_INITIAL_BACKOFF_MS: u64 = 500;
+
+/// 默认重试退避上限（毫秒）。
+pub const DEFAULT_RETRY_MAX_BACKOFF_MS: u64 = 8_000;
+
+/// 模型请求重试策略。
+///
+/// 仅对 [`crate::ModelError::is_retryable`] 为真的错误生效；退避按
+/// `initial * 2^(attempt-1)` 指数增长并封顶 [`RetryPolicy::max_backoff`]。
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RetryPolicy {
+    max_attempts: NonZeroU32,
+    initial_backoff: Duration,
+    max_backoff: Duration,
+}
+
+impl RetryPolicy {
+    /// 以最大尝试次数创建（含首次；默认退避 500ms 起、封顶 8s）。
+    ///
+    /// # Errors
+    /// `max_attempts == 0` 时返回 [`ConfigError::ZeroRetryAttempts`]。
+    pub fn new(max_attempts: u32) -> Result<Self, ConfigError> {
+        Ok(Self {
+            max_attempts: NonZeroU32::new(max_attempts).ok_or(ConfigError::ZeroRetryAttempts)?,
+            initial_backoff: Duration::from_millis(DEFAULT_RETRY_INITIAL_BACKOFF_MS),
+            max_backoff: Duration::from_millis(DEFAULT_RETRY_MAX_BACKOFF_MS),
+        })
+    }
+
+    /// 自定义退避区间。
+    ///
+    /// # Errors
+    /// 任一时长为 0 → [`ConfigError::ZeroRetryBackoff`]；
+    /// `initial > max` → [`ConfigError::InvalidRetryBackoff`]。
+    pub fn with_backoff(
+        mut self,
+        initial_backoff: Duration,
+        max_backoff: Duration,
+    ) -> Result<Self, ConfigError> {
+        if initial_backoff.is_zero() || max_backoff.is_zero() {
+            return Err(ConfigError::ZeroRetryBackoff);
+        }
+        if initial_backoff > max_backoff {
+            return Err(ConfigError::InvalidRetryBackoff {
+                initial_ms: millis(initial_backoff),
+                max_ms: millis(max_backoff),
+            });
+        }
+        self.initial_backoff = initial_backoff;
+        self.max_backoff = max_backoff;
+        Ok(self)
+    }
+
+    /// 最大尝试次数（含首次）。
+    pub fn max_attempts(&self) -> NonZeroU32 {
+        self.max_attempts
+    }
+
+    /// 首次退避。
+    pub fn initial_backoff(&self) -> Duration {
+        self.initial_backoff
+    }
+
+    /// 退避上限。
+    pub fn max_backoff(&self) -> Duration {
+        self.max_backoff
+    }
+
+    /// 第 `attempt` 次失败后的退避时长（指数增长、封顶，溢出安全）。
+    pub fn backoff_for(&self, attempt: u32) -> Duration {
+        let exponent = attempt.saturating_sub(1);
+        let factor = 1_u32.checked_shl(exponent).unwrap_or(u32::MAX);
+        self.initial_backoff
+            .checked_mul(factor)
+            .unwrap_or(self.max_backoff)
+            .min(self.max_backoff)
+    }
+}
+
+/// 时长转毫秒（饱和到 `u64::MAX`）。
+fn millis(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
 /// 模型思考（推理）选项。
 ///
 /// 语义：`enabled` 与 `effort` 均由**提供方定义**；适配层按各自协议映射
@@ -82,6 +167,8 @@ pub struct AgentConfig {
     max_parallel_tool_calls: NonZeroUsize,
     tool_timeout: Option<Duration>,
     reasoning: Option<ReasoningOptions>,
+    max_duration: Option<Duration>,
+    retry: Option<RetryPolicy>,
 }
 
 impl AgentConfig {
@@ -139,6 +226,16 @@ impl AgentConfig {
     pub fn reasoning(&self) -> Option<&ReasoningOptions> {
         self.reasoning.as_ref()
     }
+
+    /// 单次运行最长时长（`None` 表示不限制）。
+    pub fn max_duration(&self) -> Option<Duration> {
+        self.max_duration
+    }
+
+    /// 模型请求重试策略（`None` 表示不重试）。
+    pub fn retry(&self) -> Option<&RetryPolicy> {
+        self.retry.as_ref()
+    }
 }
 
 /// [`AgentConfig`] 构建器。
@@ -157,6 +254,8 @@ pub struct AgentConfigBuilder {
     max_parallel_tool_calls: Option<usize>,
     tool_timeout: Option<Duration>,
     reasoning: Option<ReasoningOptions>,
+    max_duration: Option<Duration>,
+    retry: Option<RetryPolicy>,
 }
 
 impl AgentConfigBuilder {
@@ -220,6 +319,18 @@ impl AgentConfigBuilder {
         self
     }
 
+    /// 设置单次运行最长时长（必须 > 0；省略表示不限制）。
+    pub fn max_duration(mut self, max_duration: Duration) -> Self {
+        self.max_duration = Some(max_duration);
+        self
+    }
+
+    /// 设置模型请求重试策略（省略表示不重试）。
+    pub fn retry(mut self, retry: RetryPolicy) -> Self {
+        self.retry = Some(retry);
+        self
+    }
+
     /// 构建并校验配置。
     ///
     /// # Errors
@@ -278,6 +389,12 @@ impl AgentConfigBuilder {
             });
         }
 
+        if let Some(value) = self.max_duration
+            && value.is_zero()
+        {
+            return Err(ConfigError::ZeroMaxDuration);
+        }
+
         Ok(AgentConfig {
             model,
             system_prompt: self.system_prompt,
@@ -289,6 +406,8 @@ impl AgentConfigBuilder {
             max_parallel_tool_calls,
             tool_timeout: self.tool_timeout,
             reasoning: self.reasoning,
+            max_duration: self.max_duration,
+            retry: self.retry,
         })
     }
 }
@@ -342,6 +461,8 @@ mod tests {
         assert_eq!(config.max_parallel_tool_calls().get(), 1);
         assert_eq!(config.tool_timeout(), None);
         assert_eq!(config.reasoning(), None);
+        assert_eq!(config.max_duration(), None);
+        assert!(config.retry().is_none());
     }
 
     #[test]
@@ -497,5 +618,80 @@ mod tests {
             config.reasoning().and_then(|value| value.enabled),
             Some(false)
         );
+    }
+
+    #[test]
+    fn max_duration_boundaries() {
+        assert_eq!(
+            minimal().max_duration(Duration::ZERO).build().unwrap_err(),
+            ConfigError::ZeroMaxDuration
+        );
+        assert_eq!(
+            minimal()
+                .max_duration(Duration::from_millis(1))
+                .build()
+                .unwrap()
+                .max_duration(),
+            Some(Duration::from_millis(1))
+        );
+        assert_eq!(minimal().build().unwrap().max_duration(), None);
+    }
+
+    #[test]
+    fn retry_policy_validation() {
+        assert_eq!(
+            RetryPolicy::new(0).unwrap_err(),
+            ConfigError::ZeroRetryAttempts
+        );
+
+        let policy = RetryPolicy::new(3).unwrap();
+        assert_eq!(policy.max_attempts().get(), 3);
+        assert_eq!(
+            policy.initial_backoff(),
+            Duration::from_millis(DEFAULT_RETRY_INITIAL_BACKOFF_MS)
+        );
+
+        assert_eq!(
+            RetryPolicy::new(2)
+                .unwrap()
+                .with_backoff(Duration::ZERO, Duration::from_secs(1))
+                .unwrap_err(),
+            ConfigError::ZeroRetryBackoff
+        );
+        assert_eq!(
+            RetryPolicy::new(2)
+                .unwrap()
+                .with_backoff(Duration::from_secs(2), Duration::from_secs(1))
+                .unwrap_err(),
+            ConfigError::InvalidRetryBackoff {
+                initial_ms: 2_000,
+                max_ms: 1_000
+            }
+        );
+
+        // 配置集成
+        let config = minimal()
+            .retry(RetryPolicy::new(3).unwrap())
+            .build()
+            .unwrap();
+        assert_eq!(
+            config.retry().map(|policy| policy.max_attempts().get()),
+            Some(3)
+        );
+    }
+
+    #[test]
+    fn backoff_growth_is_exponential_and_capped() {
+        let policy = RetryPolicy::new(10)
+            .unwrap()
+            .with_backoff(Duration::from_millis(100), Duration::from_millis(800))
+            .unwrap();
+        assert_eq!(policy.backoff_for(1), Duration::from_millis(100));
+        assert_eq!(policy.backoff_for(2), Duration::from_millis(200));
+        assert_eq!(policy.backoff_for(3), Duration::from_millis(400));
+        assert_eq!(policy.backoff_for(4), Duration::from_millis(800));
+        // 封顶与溢出安全
+        assert_eq!(policy.backoff_for(5), Duration::from_millis(800));
+        assert_eq!(policy.backoff_for(u32::MAX), Duration::from_millis(800));
     }
 }

@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 
 use futures_util::StreamExt;
 use mycelium_core::error::ModelError;
-use mycelium_core::message::{ContentBlock, Role};
+use mycelium_core::message::{ContentBlock, Role, ToolResultBlock};
 use mycelium_core::{AgentConfig, Message, ModelId, ToolError, ToolName, ToolSpec, Usage};
 use mycelium_model::{ModelDelta, ModelProvider, ModelRequest, async_trait};
 use mycelium_provider_openai::OpenAiProvider;
@@ -257,7 +257,11 @@ async fn e2e_tool_round_trip() {
         ContentBlock::ToolResult {
             content, is_error, ..
         } => {
-            assert_eq!(content, "{\"text\":\"ping\"}");
+            assert_eq!(content.len(), 1);
+            assert!(matches!(
+                &content[0],
+                ToolResultBlock::Text { text } if text == "{\"text\":\"ping\"}"
+            ));
             assert!(!is_error);
         }
         other => panic!("期望 ToolResult，实际：{other:?}"),

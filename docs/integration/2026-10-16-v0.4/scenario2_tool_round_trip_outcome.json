@@ -1,0 +1,57 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "Simple request. Use add tool.",
+          "type": "thinking"
+        },
+        {
+          "id": "call_00_Ql1olfxsry2qa3ev4YrJ1869",
+          "input": {
+            "a": 21,
+            "b": 21
+          },
+          "name": "add",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "42",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_call_id": "call_00_Ql1olfxsry2qa3ev4YrJ1869",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "text": "Result is 42.",
+          "type": "thinking"
+        },
+        {
+          "text": "计算结果是 **42**。",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 2,
+  "usage": {
+    "input_tokens": 749,
+    "output_tokens": 72,
+    "reasoning_tokens": 12
+  }
+}

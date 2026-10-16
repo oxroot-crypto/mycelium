@@ -7,15 +7,17 @@
 ```text
 docs/integration/
 ├── README.md
-└── 2026-10-16/                              # 一次完整联调（DeepSeek-V4.1-Flash）
-    ├── report.md                            # 环境 / 场景 / 断言结果汇总
-    ├── transcript.log                       # tracing 全量原始日志
-    ├── scenario1_text_thinking_events.jsonl
-    ├── scenario1_text_thinking_outcome.json
-    ├── scenario2_tool_round_trip_events.jsonl
-    ├── scenario2_tool_round_trip_outcome.json
-    ├── scenario3_mcp_filesystem_events.jsonl
-    └── scenario3_mcp_filesystem_outcome.json
+├── 2026-10-16/                              # v0.3 联调（DeepSeek-V4.1-Flash）
+│   ├── report.md
+│   ├── transcript.log
+│   ├── scenario1_text_thinking_events.jsonl
+│   ├── scenario1_text_thinking_outcome.json
+│   ├── scenario2_tool_round_trip_events.jsonl
+│   ├── scenario2_tool_round_trip_outcome.json
+│   ├── scenario3_mcp_filesystem_events.jsonl
+│   └── scenario3_mcp_filesystem_outcome.json
+└── 2026-10-16-v0.4/                         # v0.4 联调（结构化工具结果 / 重试版本重跑）
+    └── （同上结构）
 ```
 
 ## 产物说明

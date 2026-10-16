@@ -13,7 +13,7 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use futures_util::{StreamExt, stream};
 use mycelium_core::event::{AgentEvent, AgentEventKind};
@@ -166,7 +166,7 @@ impl Engine {
 
         let context = self.context();
         if let Some(hooks) = &self.hooks {
-            hooks.on_run_start(&context);
+            hooks.on_run_start(&context).await;
         }
 
         match self.drive(input).await {
@@ -183,7 +183,7 @@ impl Engine {
                     steps: output.steps,
                 };
                 if let Some(hooks) = &self.hooks {
-                    hooks.on_run_end(&context, Ok(&outcome));
+                    hooks.on_run_end(&context, Ok(&outcome)).await;
                 }
                 tracing::debug!(run_id = %self.run_id, steps = outcome.steps, "运行完成");
                 Ok(outcome)
@@ -200,7 +200,7 @@ impl Engine {
                     }
                 }
                 if let Some(hooks) = &self.hooks {
-                    hooks.on_run_end(&context, Err(&error));
+                    hooks.on_run_end(&context, Err(&error)).await;
                 }
                 tracing::debug!(run_id = %self.run_id, error = %error, "运行失败");
                 Err(error)
@@ -223,11 +223,25 @@ impl Engine {
         let history_start = messages.len();
         let mut usage = Usage::default();
         let mut steps: u32 = 0;
+        let started = Instant::now();
 
         loop {
             if self.cancel.is_cancelled() {
                 transition(state, RunEvent::Cancel)?;
                 return Err(AgentError::Cancelled);
+            }
+
+            // 时长预算：在循环边界强制（超限后不再发起新的模型请求）。
+            if let Some(limit) = self.config.max_duration() {
+                let elapsed = started.elapsed();
+                if elapsed > limit {
+                    transition(state, RunEvent::Fail)?;
+                    return Err(AgentError::BudgetExceeded {
+                        kind: BudgetKind::DurationMs,
+                        limit: millis_of(limit),
+                        observed: millis_of(elapsed),
+                    });
+                }
             }
 
             let next_step = steps.checked_add(1).ok_or_else(|| AgentError::Internal {
@@ -249,7 +263,7 @@ impl Engine {
                 .emit(AgentEventKind::StepStarted { step: steps })
                 .await;
             if let Some(hooks) = &self.hooks {
-                hooks.on_step_start(&self.context(), steps);
+                hooks.on_step_start(&self.context(), steps).await;
             }
             self.emitter
                 .emit(AgentEventKind::ModelRequestStarted {
@@ -343,10 +357,11 @@ impl Engine {
                         return Err(other);
                     }
                 };
-                messages.push(Message::tool_result(
+                let is_error = output.is_error();
+                messages.push(Message::tool_result_blocks(
                     call.id.clone(),
-                    output.content(),
-                    output.is_error(),
+                    output.into_blocks(),
+                    is_error,
                 ));
             }
             state = transition(state, RunEvent::ToolsCompleted)?;
@@ -375,7 +390,13 @@ impl Engine {
         stream::iter(futures).buffered(concurrency).collect().await
     }
 
-    /// 调用模型：构造请求、施加超时、消费流并装配响应。
+    /// 调用模型：构造请求、按重试策略执行（含超时与指数退避）、消费流并装配响应。
+    ///
+    /// 重试语义（FC-POST-160 ~ FC-ERR-061）：
+    /// - 仅对 `ModelError::is_retryable()` 为真的错误重试；
+    /// - 每次失败后在退避前发射 `ModelRetry` 事件；
+    /// - 退避等待可被取消打断；
+    /// - 重试不增加步数（步数按逻辑轮次计）。
     async fn call_model(&mut self, messages: &[Message]) -> Result<ModelResponse, AgentError> {
         let request = ModelRequest {
             model: self.config.model().clone(),
@@ -389,9 +410,55 @@ impl Engine {
             cancel: self.cancel.clone(),
         };
 
+        let mut attempt: u32 = 1;
+        loop {
+            match self.attempt_model_call(&request).await {
+                Ok(response) => return Ok(response),
+                Err(error) => {
+                    let Some(policy) = self.config.retry() else {
+                        return Err(error);
+                    };
+                    let retryable = matches!(
+                        &error,
+                        AgentError::Model(model_error) if model_error.is_retryable()
+                    );
+                    if !retryable || attempt >= policy.max_attempts().get() {
+                        return Err(error);
+                    }
+                    let delay = policy.backoff_for(attempt);
+                    self.emitter
+                        .emit(AgentEventKind::ModelRetry {
+                            attempt,
+                            delay_ms: millis_of(delay),
+                            reason: error.to_string(),
+                        })
+                        .await;
+                    tracing::debug!(
+                        attempt,
+                        delay_ms = millis_of(delay),
+                        error = %error,
+                        "模型请求失败，退避后重试"
+                    );
+                    let cancel = self.cancel.clone();
+                    tokio::select! {
+                        biased;
+                        () = cancel.cancelled() => return Err(AgentError::Cancelled),
+                        () = tokio::time::sleep(delay) => {}
+                    }
+                    attempt += 1;
+                }
+            }
+        }
+    }
+
+    /// 单次模型请求（含请求超时）。
+    async fn attempt_model_call(
+        &mut self,
+        request: &ModelRequest,
+    ) -> Result<ModelResponse, AgentError> {
         let timeout = self.config.request_timeout();
         let timeout_ms = millis_of(timeout);
-        match tokio::time::timeout(timeout, self.consume_model_stream(request)).await {
+        match tokio::time::timeout(timeout, self.consume_model_stream(request.clone())).await {
             Ok(result) => result,
             Err(_elapsed) => Err(ModelError::Timeout { timeout_ms }.into()),
         }
@@ -479,13 +546,15 @@ impl ToolRuntime {
             })
             .await;
         if let Some(hooks) = &self.hooks {
-            hooks.on_tool_call(
-                &RunContext {
-                    run_id: self.run_id,
-                    cancel: self.cancel.clone(),
-                },
-                call,
-            );
+            hooks
+                .on_tool_call(
+                    &RunContext {
+                        run_id: self.run_id,
+                        cancel: self.cancel.clone(),
+                    },
+                    call,
+                )
+                .await;
         }
         outcome
     }
@@ -601,7 +670,9 @@ mod tests {
     use futures_util::StreamExt;
     use mycelium_core::event::{AgentEvent, AgentEventKind};
     use mycelium_core::message::ContentBlock;
-    use mycelium_core::{ModelError, ModelId, Role, StopReason, ToolChoice, ToolName};
+    use mycelium_core::{
+        ModelError, ModelId, RetryPolicy, Role, StopReason, ToolChoice, ToolName, ToolResultBlock,
+    };
     use mycelium_model::ModelProvider;
     use mycelium_tools::Tool;
     use mycelium_tools::policy::{AllowAll, DenyList};
@@ -610,10 +681,10 @@ mod tests {
     use crate::AgentRuntime;
     use crate::run::RunInput;
     use crate::test_support::{
-        RecordingHooks, ScriptedProvider, ScriptedResponse, cancel_wait_tool, cancelled_tool,
-        counting_echo_tool, delay_tool, echo_tool, failing_tool, pending_provider, slow_tool,
-        strict_tool, text_response, text_response_with_usage, tool_call_response,
-        tool_call_response_with_usage, tool_calls_response,
+        AsyncRecordingHooks, RecordingHooks, ScriptedProvider, ScriptedResponse, cancel_wait_tool,
+        cancelled_tool, counting_echo_tool, delay_tool, echo_tool, failing_tool, pending_provider,
+        slow_tool, strict_tool, structured_tool, text_response, text_response_with_usage,
+        tool_call_response, tool_call_response_with_usage, tool_calls_response,
     };
 
     fn base_config() -> AgentConfig {
@@ -661,6 +732,18 @@ mod tests {
             .count()
     }
 
+    /// 汇总工具结果中的文本块（测试辅助）。
+    fn tool_text(content: &[ToolResultBlock]) -> String {
+        content
+            .iter()
+            .filter_map(|block| match block {
+                ToolResultBlock::Text { text } => Some(text.as_str()),
+                ToolResultBlock::Image { .. } => None,
+            })
+            .collect::<Vec<_>>()
+            .join("\n")
+    }
+
     #[tokio::test]
     async fn completes_without_tools() {
         let provider = Arc::new(ScriptedProvider::new(vec![text_response("pong")]));
@@ -703,7 +786,7 @@ mod tests {
                 is_error,
             } => {
                 assert_eq!(tool_call_id.as_str(), "call_1");
-                assert_eq!(content, "{\"text\":\"hi\"}");
+                assert_eq!(tool_text(content), "{\"text\":\"hi\"}");
                 assert!(!is_error);
             }
             other => panic!("期望 ToolResult，实际：{other:?}"),
@@ -785,8 +868,8 @@ mod tests {
                 content, is_error, ..
             } => {
                 assert!(is_error);
-                assert!(content.contains("工具未注册"));
-                assert!(content.contains("missing_tool"));
+                assert!(tool_text(content).contains("工具未注册"));
+                assert!(tool_text(content).contains("missing_tool"));
             }
             other => panic!("期望 ToolResult，实际：{other:?}"),
         }
@@ -806,8 +889,8 @@ mod tests {
                 content, is_error, ..
             } => {
                 assert!(is_error);
-                assert!(content.contains("工具入参非法"));
-                assert!(content.contains("$.text"));
+                assert!(tool_text(content).contains("工具入参非法"));
+                assert!(tool_text(content).contains("$.text"));
             }
             other => panic!("期望 ToolResult，实际：{other:?}"),
         }
@@ -827,7 +910,7 @@ mod tests {
                 content, is_error, ..
             } => {
                 assert!(is_error);
-                assert!(content.contains("boom"));
+                assert!(tool_text(content).contains("boom"));
             }
             other => panic!("期望 ToolResult，实际：{other:?}"),
         }
@@ -1180,7 +1263,7 @@ mod tests {
                     tool_call_id,
                     content,
                     ..
-                } => Some((tool_call_id.as_str().to_owned(), content.clone())),
+                } => Some((tool_call_id.as_str().to_owned(), tool_text(content))),
                 _ => None,
             })
             .collect();
@@ -1258,7 +1341,7 @@ mod tests {
                 content, is_error, ..
             } => {
                 assert!(is_error);
-                assert!(content.contains("超时"));
+                assert!(tool_text(content).contains("超时"));
             }
             other => panic!("期望 ToolResult，实际：{other:?}"),
         }
@@ -1380,7 +1463,7 @@ mod tests {
             ContentBlock::ToolResult {
                 content, is_error, ..
             } => {
-                assert_eq!(content, "{\"x\":1}");
+                assert_eq!(tool_text(content), "{\"x\":1}");
                 assert!(!is_error);
             }
             other => panic!("期望 ToolResult，实际：{other:?}"),
@@ -1411,10 +1494,221 @@ mod tests {
                 content, is_error, ..
             } => {
                 assert!(is_error);
-                assert!(content.contains("被拒绝"));
-                assert!(content.contains("拒绝列表"));
+                assert!(tool_text(content).contains("被拒绝"));
+                assert!(tool_text(content).contains("拒绝列表"));
             }
             other => panic!("期望 ToolResult，实际：{other:?}"),
         }
+    }
+
+    /// 构造带重试策略的基础配置（测试辅助）。
+    fn retry_config(attempts: u32, initial_ms: u64, max_ms: u64) -> AgentConfig {
+        let policy = RetryPolicy::new(attempts)
+            .unwrap()
+            .with_backoff(
+                Duration::from_millis(initial_ms),
+                Duration::from_millis(max_ms),
+            )
+            .unwrap();
+        AgentConfig::builder()
+            .model(ModelId::new("scripted-model").unwrap())
+            .retry(policy)
+            .build()
+            .unwrap()
+    }
+
+    #[tokio::test]
+    async fn structured_tool_result_is_fed_back_intact() {
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("screenshot", "c1", "{}"),
+            text_response("done"),
+        ]));
+        let runtime = build_runtime(base_config(), provider, vec![structured_tool()]);
+
+        let outcome = runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+        match &outcome.messages[1].content()[0] {
+            ContentBlock::ToolResult {
+                content, is_error, ..
+            } => {
+                assert!(!is_error);
+                assert_eq!(content.len(), 2);
+                assert!(matches!(
+                    &content[0],
+                    ToolResultBlock::Text { text } if text == "截图如下"
+                ));
+                assert!(matches!(
+                    &content[1],
+                    ToolResultBlock::Image { media_type, data }
+                        if media_type == "image/png" && data == "aGVsbG8="
+                ));
+            }
+            other => panic!("期望 ToolResult，实际：{other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn retries_retryable_model_errors() {
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            ScriptedResponse::Error(ModelError::Transport {
+                message: "net down".to_owned(),
+            }),
+            ScriptedResponse::Error(ModelError::RateLimited {
+                retry_after_ms: None,
+            }),
+            text_response("pong"),
+        ]));
+        let runtime = build_runtime(retry_config(3, 1, 4), provider.clone(), vec![]);
+
+        let (events, result) = collect_events(&runtime, RunInput::from_user_text("ping")).await;
+        let outcome = result.unwrap();
+        assert_eq!(provider.call_count(), 3);
+        // 重试不增加步数（步数按逻辑轮次计）
+        assert_eq!(outcome.steps, 1);
+
+        let retries: Vec<(u32, u64)> = events
+            .iter()
+            .filter_map(|event| match &event.kind {
+                AgentEventKind::ModelRetry {
+                    attempt, delay_ms, ..
+                } => Some((*attempt, *delay_ms)),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(retries, vec![(1, 1), (2, 2)]);
+    }
+
+    #[tokio::test]
+    async fn non_retryable_error_is_not_retried() {
+        let provider = Arc::new(ScriptedProvider::new(vec![ScriptedResponse::Error(
+            ModelError::Unsupported {
+                feature: "tool_calling",
+            },
+        )]));
+        let runtime = build_runtime(retry_config(3, 1, 4), provider.clone(), vec![]);
+
+        let (events, result) = collect_events(&runtime, RunInput::from_user_text("ping")).await;
+        assert!(matches!(
+            result,
+            Err(AgentError::Model(ModelError::Unsupported { .. }))
+        ));
+        assert_eq!(provider.call_count(), 1);
+        assert!(
+            !events
+                .iter()
+                .any(|event| matches!(event.kind, AgentEventKind::ModelRetry { .. }))
+        );
+    }
+
+    #[tokio::test]
+    async fn retry_exhausted_returns_last_error() {
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            ScriptedResponse::Error(ModelError::Transport {
+                message: "first".to_owned(),
+            }),
+            ScriptedResponse::Error(ModelError::Transport {
+                message: "second".to_owned(),
+            }),
+        ]));
+        let runtime = build_runtime(retry_config(2, 1, 2), provider.clone(), vec![]);
+
+        let (events, result) = collect_events(&runtime, RunInput::from_user_text("ping")).await;
+        match result {
+            Err(AgentError::Model(ModelError::Transport { message })) => {
+                assert_eq!(message, "second");
+            }
+            other => panic!("期望最后一次 Transport 错误，实际：{other:?}"),
+        }
+        assert_eq!(provider.call_count(), 2);
+        assert_eq!(
+            events
+                .iter()
+                .filter(|event| matches!(event.kind, AgentEventKind::ModelRetry { .. }))
+                .count(),
+            1
+        );
+    }
+
+    #[tokio::test]
+    async fn cancel_during_retry_backoff() {
+        // 退避 5s：取消必须立刻打断（否则用例会超时）
+        let provider = Arc::new(ScriptedProvider::new(vec![ScriptedResponse::Error(
+            ModelError::Transport {
+                message: "net down".to_owned(),
+            },
+        )]));
+        let runtime = build_runtime(retry_config(3, 5_000, 5_000), provider, vec![]);
+        let input = RunInput::from_user_text("ping");
+        let cancel = input.cancel.clone();
+        let (mut events, result) = runtime.run_events(input).split();
+
+        loop {
+            let event = events.next().await.expect("应有事件");
+            if matches!(event.kind, AgentEventKind::ModelRetry { .. }) {
+                break;
+            }
+        }
+        cancel.cancel();
+
+        let outcome = tokio::time::timeout(Duration::from_secs(2), result.await_result())
+            .await
+            .expect("退避应被取消打断");
+        assert!(matches!(outcome, Err(AgentError::Cancelled)));
+    }
+
+    #[tokio::test]
+    async fn duration_budget_exceeded() {
+        let config = AgentConfig::builder()
+            .model(ModelId::new("scripted-model").unwrap())
+            .max_duration(Duration::from_millis(50))
+            .build()
+            .unwrap();
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("echo", "c1", "{}"),
+            text_response("done"),
+        ]));
+        // 工具耗时 200ms > 预算 50ms：第二轮请求前必须终止
+        let runtime = build_runtime(config, provider.clone(), vec![delay_tool("echo", 200)]);
+
+        let result = runtime.run(RunInput::from_user_text("ping")).await;
+        match result {
+            Err(AgentError::BudgetExceeded {
+                kind: BudgetKind::DurationMs,
+                limit,
+                observed,
+            }) => {
+                assert_eq!(limit, 50);
+                assert!(observed >= 50, "observed={observed}");
+            }
+            other => panic!("期望 DurationMs 预算错误，实际：{other:?}"),
+        }
+        assert_eq!(provider.call_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn async_hooks_can_await_io() {
+        let provider = Arc::new(ScriptedProvider::new(vec![
+            tool_call_response("echo", "c1", "{}"),
+            text_response("done"),
+        ]));
+        let hooks = Arc::new(AsyncRecordingHooks::default());
+        let runtime = AgentRuntime::builder()
+            .config(base_config())
+            .provider(provider)
+            .tool(echo_tool())
+            .hooks(hooks.clone())
+            .build()
+            .unwrap();
+
+        runtime.run(RunInput::from_user_text("ping")).await.unwrap();
+        assert_eq!(
+            hooks.calls(),
+            vec![
+                "run_start",
+                "step_start:1",
+                "tool_call:echo",
+                "step_start:2",
+                "run_end:true",
+            ]
+        );
     }
 }
