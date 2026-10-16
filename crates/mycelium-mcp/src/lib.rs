@@ -1,11 +1,12 @@
 //! mycelium 的 MCP（Model Context Protocol）客户端适配。
 //!
-//! 覆盖 MCP stdio 传输的工具能力（契约见 `docs/spec/core.md` §2.19）：
+//! 覆盖 MCP stdio 与 streamable HTTP 传输的能力（契约见 `docs/spec/core.md` §2.19 / §2.29）：
 //!
-//! - 传输：换行分隔的 JSON-RPC 2.0（stdio 子进程，或任意双向流）；
-//! - 握手：`initialize` → `notifications/initialized`；
-//! - 发现：`tools/list`（支持 `nextCursor` 分页）→ [`mycelium_core::ToolSpec`]；
-//! - 调用：`tools/call` → [`mycelium_tools::ToolOutput`]；
+//! - 传输：换行分隔的 JSON-RPC 2.0（stdio 子进程 / 任意双向流）与 streamable HTTP；
+//! - 握手：`initialize` → `notifications/initialized`（HTTP 模式捕获 `Mcp-Session-Id`）；
+//! - 工具：`tools/list`（支持 `nextCursor` 分页）→ [`mycelium_core::ToolSpec`]；`tools/call`；
+//! - 资源：`resources/list` → [`McpResource`]；`resources/read` → [`McpResourceContent`]；
+//! - 提示模板：`prompts/list` → [`McpPrompt`]；`prompts/get` → [`McpPromptMessage`]；
 //! - [`McpClient::tools`] 产出的 `Arc<dyn Tool>` 可直接注册进 `AgentRuntime`。
 //!
 //! # Examples
@@ -14,19 +15,34 @@
 //!
 //! # #[tokio::main]
 //! # async fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! // stdio 子进程
 //! let client = Arc::new(mycelium_mcp::McpClient::spawn("npx", &["-y", "@modelcontextprotocol/server-everything"]).await?);
 //! for tool in client.tools().await? {
 //!     println!("MCP 工具：{}", tool.spec().name());
 //! }
 //! client.shutdown().await?;
+//!
+//! // streamable HTTP 端点
+//! let http = mycelium_mcp::McpClient::connect_http("https://example.com/mcp").await?;
+//! let _ = http.list_resources().await?;
+//! http.shutdown().await?;
 //! # Ok(())
 //! # }
 //! ```
 
-mod client;
-mod tool;
+#![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
-pub use client::{MAX_TOOL_PAGES, McpClient, McpServerInfo, PROTOCOL_VERSION};
+mod client;
+mod content;
+mod http;
+mod prompts;
+mod resources;
+mod tool;
+mod transport;
+
+pub use client::{MAX_LIST_PAGES, McpClient, McpServerInfo, PROTOCOL_VERSION};
+pub use prompts::{McpPrompt, McpPromptArgument, McpPromptMessage};
+pub use resources::{McpResource, McpResourceContent};
 pub use tool::McpTool;
 
 /// MCP 客户端错误。

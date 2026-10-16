@@ -9,7 +9,7 @@
 //! - `report.md`：环境、场景与断言结果汇总。
 //!
 //! 场景：① 文本 + 思考链；② `#[tool]` 工具往返；③ MCP 文件系统；④ 多轮会话（持久化 + 恢复）；
-//! ⑤ 子 Agent 编排（agent-as-tool）。
+//! ⑤ 子 Agent 编排（agent-as-tool）；⑥ MCP 资源与提示模板（协议能力探测）。
 //!
 //! 隐私说明：`Authorization` 请求头**不进入日志**（仅请求体与响应行落盘）。
 //!
@@ -359,7 +359,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "| 3 | MCP 文件系统（DeepSeek × MCP） | steps={}，事件={}，usage={:?}，调用工具={:?} |",
         outcome.steps, events, outcome.usage, called_tools
     ));
-    client.shutdown().await?;
 
     // 6) 场景 4：多轮会话（持久化 + 恢复，run_session）
     println!("== 场景 4：多轮会话（Session 持久化）==");
@@ -438,7 +437,53 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tool_texts.join(" / ").replace('\n', " ")
     ));
 
-    // 8) 汇总报告
+    // 8) 场景 6：MCP 资源与提示模板（server-everything 覆盖全部 MCP 能力）
+    println!("== 场景 6：MCP 资源与提示模板 ==");
+    let everything = Arc::new(
+        McpClient::spawn(
+            "npx",
+            &[
+                "--registry=https://registry.npmjs.org",
+                "-y",
+                "@modelcontextprotocol/server-everything",
+            ],
+        )
+        .await?,
+    );
+    let resources = everything.list_resources().await?;
+    assert!(!resources.is_empty(), "server-everything 应提供资源");
+    let contents = everything.read_resource(&resources[0].uri).await?;
+    assert!(
+        !contents.is_empty(),
+        "资源 {url} 应可读取",
+        url = resources[0].uri
+    );
+    let prompts = everything.list_prompts().await?;
+    assert!(!prompts.is_empty(), "server-everything 应提供提示模板");
+    let messages = everything.get_prompt(&prompts[0].name, None).await?;
+    assert!(!messages.is_empty(), "提示模板应可展开");
+    println!(
+        "   资源 {} 个（{} → {} 内容块）；提示模板 {} 个（{} → {} 条消息）",
+        resources.len(),
+        resources[0].uri,
+        contents.len(),
+        prompts.len(),
+        prompts[0].name,
+        messages.len()
+    );
+    report_items.push(format!(
+        "| 6 | MCP 资源与提示模板（server-everything） | 资源 {} 个（{} → {} 内容块）；提示模板 {} 个（{} → {} 条消息） |",
+        resources.len(),
+        resources[0].uri,
+        contents.len(),
+        prompts.len(),
+        prompts[0].name,
+        messages.len()
+    ));
+    everything.shutdown().await?;
+    client.shutdown().await?;
+
+    // 9) 汇总报告
     let generated_at_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))

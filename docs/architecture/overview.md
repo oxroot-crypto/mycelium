@@ -106,6 +106,7 @@ flowchart TB
 | `RunHooks` | `mycelium-runtime` | 观测与拦截（异步审计 / 指标） | v0.5 已异步化（RFC-0001）；改写能力见后续 RFC |
 | `SessionStore` | `mycelium-runtime` | 会话持久化（可插拔存储后端） | v0.5 已提供内存 / 文件实现；数据库 / 云存储在生态侧 |
 | `Memory` | `mycelium-runtime` | 跨会话长期记忆（写入 / 召回 / 遗忘） | v0.6 已提供 SPI 与朴素内存实现；向量检索在生态侧 |
+| MCP 服务 | `mycelium-mcp` | 以 stdio / streamable HTTP 接入 MCP 生态（工具 / 资源 / 提示模板） | v0.3 工具；v0.7 资源 / 提示 / HTTP |
 
 ## 8. 错误模型
 
@@ -134,8 +135,8 @@ flowchart TB
 | `uuid`（v7） | core / runtime | 时间有序 ID（会话 / 运行 / 记忆），便于持久化与排序 |
 | `tokio` / `tokio-util` | runtime / provider（及测试） | 栈基线决策；`CancellationToken` 作为统一取消原语 |
 | `futures-core` / `futures-util` | model / runtime | `Stream` 抽象与流构造工具 |
-| `reqwest`（rustls-no-provider） | provider-openai | HTTP 客户端；不启用默认 TLS 后端，改用 ring（见下行） |
-| `rustls`（ring 后端） | provider-openai | TLS 实现；ring 后端仅需 C 编译器、无需 cmake（aws-lc-rs 需要 cmake，刻意规避） |
+| `reqwest`（rustls-no-provider） | provider-openai / mcp | HTTP 客户端（模型调用与 MCP streamable HTTP）；不启用默认 TLS 后端，改用 ring（见下行） |
+| `rustls`（ring 后端） | provider-openai / mcp | TLS 实现；ring 后端仅需 C 编译器、无需 cmake（aws-lc-rs 需要 cmake，刻意规避） |
 | `tracing` | runtime / provider / mcp | 结构化日志；联调原始交互（HTTP 请求体 / SSE 行 / JSON-RPC 原文）经 subscriber 落盘（见 `docs/integration/`） |
 | `tracing-subscriber`（dev） | 门面示例 | 联调日志落盘订阅器（TRACE 全量，无 ANSI） |
 | `proptest`（dev） | core、model | FSVDD 强制要求的基于属性测试 |
@@ -171,8 +172,11 @@ v0.5 已完成：多轮会话（`SessionStore` SPI + 内存/文件实现 + `run_
 v0.6 已完成：长期记忆 SPI（`Memory` + `InMemoryMemory`）、JSON Schema 子集扩充
 （组合/边界/长度/数组约束）、tracing 结构化 span（`mycelium.run` / `step` / `tool`）。
 
-尚未实现（见 roadmap）：MCP 资源 / 提示模板 / HTTP 传输、剩余 JSON Schema 关键字、
-外部记忆后端、cargo-mutants / cargo-deny。
+v0.7 已完成：MCP 完整化 —— 资源（`resources/list` / `read`）、提示模板（`prompts/list` / `get`）、
+streamable HTTP 传输（会话头 / JSON 与 SSE / 通知 202）与 `Transport` 抽象重构。
+
+尚未实现（见 roadmap）：MCP 采样回调与通知订阅、剩余 JSON Schema 关键字、外部记忆后端、
+cargo-mutants / cargo-deny。
 
 - 生命周期与状态机：`docs/architecture/lifecycle.md`
 - 形式化约束矩阵：`docs/spec/core.md`

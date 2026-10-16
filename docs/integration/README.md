@@ -22,6 +22,8 @@ docs/integration/
 │   ├── （同上结构）
 │   └── sessions/                            # 场景 4 的会话持久化文件（FileSessionStore）
 └── 2026-10-16-v0.6/                         # v0.6 联调（含结构化 span 的完整 transcript）
+│   └── （同上结构）
+└── 2026-10-16-v0.7/                         # v0.7 联调（新增场景 6：MCP 资源 / 提示模板）
     └── （同上结构）
 ```
 
@@ -53,4 +55,5 @@ cargo run -p mycelium --features provider-openai --example live_integration -- d
 3. MCP 文件系统服务（npx `@modelcontextprotocol/server-filesystem`）：模型自主选择
    `read_text_file` 读取沙箱文件并回答内容；
 4. 多轮会话（`run_session` + `FileSessionStore` 持久化并在新 store 实例中恢复）；
-5. 子 Agent 编排（`AgentTool`：父 Agent 委托子运行并转述结果）。
+5. 子 Agent 编排（`AgentTool`：父 Agent 委托子运行并转述结果）；
+6. MCP 资源与提示模板（官方 `server-everything`：`resources/list` / `read`、`prompts/list` / `get`）。

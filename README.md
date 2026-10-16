@@ -3,10 +3,10 @@
 面向 Rust 的 agent SDK：**分层通用核心**。内核不假设产品形态，同一套抽象既可嵌入应用
 （框架形态），也可演进为本地 Agent 运行时（服务形态）。
 
-> **状态：v0.6。** 执行循环、并发工具、权限策略、`#[tool]` 派生宏、MCP 客户端、思考过程、
-> 结构化工具结果、异步钩子、重试与降级、多轮会话持久化、子 Agent 编排、**长期记忆 SPI、
-> JSON Schema 扩充与 tracing 结构化 span** 均已可用，并经 DeepSeek V4.1-Flash 五场景真实联调验证
-> （原始日志见 `docs/integration/`）；会话持久化与
+> **状态：v0.7。** 执行循环、并发工具、权限策略、`#[tool]` 派生宏、**MCP 完整客户端（工具 / 资源 /
+> 提示模板 / stdio + HTTP 传输）**、思考过程、结构化工具结果、异步钩子、重试与降级、多轮会话持久化、
+> 子 Agent 编排、长期记忆 SPI、JSON Schema 扩充与 tracing 结构化 span 均已可用，并经
+> DeepSeek V4.1-Flash 六场景真实联调验证（原始日志见 `docs/integration/`）；会话持久化与
 > 子 Agent 编排见 [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md)。
 
 ## 架构

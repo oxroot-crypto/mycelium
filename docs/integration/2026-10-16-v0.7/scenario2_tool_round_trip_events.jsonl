@@ -1,0 +1,32 @@
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":0,"at_ms":1792133901101,"type":"run_started","message_count":1}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":1,"at_ms":1792133901102,"type":"step_started","step":1}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":2,"at_ms":1792133901102,"type":"model_request_started","model":"deepseek-flash","message_count":1,"tool_count":1}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":3,"at_ms":1792133901810,"type":"model_thinking_delta","text":"We"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":4,"at_ms":1792133901871,"type":"model_thinking_delta","text":" need"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":5,"at_ms":1792133901886,"type":"model_thinking_delta","text":" use"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":6,"at_ms":1792133901902,"type":"model_thinking_delta","text":" add"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":7,"at_ms":1792133901936,"type":"model_thinking_delta","text":" tool"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":8,"at_ms":1792133901936,"type":"model_thinking_delta","text":"."}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":9,"at_ms":1792133901936,"type":"model_thinking_delta","text":" Must"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":10,"at_ms":1792133901936,"type":"model_thinking_delta","text":" call"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":11,"at_ms":1792133901936,"type":"model_thinking_delta","text":"."}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":12,"at_ms":1792133901936,"type":"model_thinking_delta","text":" Then"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":13,"at_ms":1792133901953,"type":"model_thinking_delta","text":" give"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":14,"at_ms":1792133901977,"type":"model_thinking_delta","text":" result"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":15,"at_ms":1792133901977,"type":"model_thinking_delta","text":"."}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":16,"at_ms":1792133902164,"type":"model_request_finished","stop_reason":"tool_use","usage":{"input_tokens":338,"output_tokens":66,"reasoning_tokens":13}}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":17,"at_ms":1792133902164,"type":"model_tool_call","call":{"id":"call_00_xjT197FaeW3xD2alBMmT3469","name":"add","arguments":{"a":21,"b":21}}}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":18,"at_ms":1792133902164,"type":"tool_call_started","call_id":"call_00_xjT197FaeW3xD2alBMmT3469","name":"add"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":19,"at_ms":1792133902164,"type":"tool_call_finished","call_id":"call_00_xjT197FaeW3xD2alBMmT3469","name":"add","is_error":false}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":20,"at_ms":1792133902164,"type":"step_started","step":2}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":21,"at_ms":1792133902164,"type":"model_request_started","model":"deepseek-flash","message_count":3,"tool_count":1}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":22,"at_ms":1792133902878,"type":"model_text_delta","text":"21"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":23,"at_ms":1792133902884,"type":"model_text_delta","text":" +"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":24,"at_ms":1792133902884,"type":"model_text_delta","text":" "}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":25,"at_ms":1792133902884,"type":"model_text_delta","text":"21"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":26,"at_ms":1792133902884,"type":"model_text_delta","text":" ="}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":27,"at_ms":1792133902884,"type":"model_text_delta","text":" **"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":28,"at_ms":1792133902884,"type":"model_text_delta","text":"42"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":29,"at_ms":1792133902900,"type":"model_text_delta","text":"**"}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":30,"at_ms":1792133902900,"type":"model_request_finished","stop_reason":"end_turn","usage":{"input_tokens":417,"output_tokens":9,"reasoning_tokens":0}}
+{"run_id":"01a14381-2b2d-7333-94a8-66ec7a5eb55f","seq":31,"at_ms":1792133902900,"type":"run_completed","usage":{"input_tokens":755,"output_tokens":75,"reasoning_tokens":13},"steps":2}

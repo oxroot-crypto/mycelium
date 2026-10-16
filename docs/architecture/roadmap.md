@@ -12,14 +12,15 @@
 | v0.4.0 | 2026-10-16 | `e28205b`（`v0.4.0`） | 结构化工具结果、异步钩子、重试与降级、时长预算、MSRV CI | ✅ 已发布 |
 | v0.5.0 | 2026-10-16 | `3fcd1c2`（`v0.5.0`） | 多轮会话持久化（`SessionStore` + `run_session`）、子 Agent 编排（`AgentTool`） | ✅ 已发布 |
 | v0.6.0 | 2026-10-16 | `9fbe52a`（`v0.6.0`） | 长期记忆 SPI、JSON Schema 扩充、tracing 结构化 span | ✅ 已发布 |
-| v0.6.x | — | — | MCP 资源/提示模板/HTTP、剩余 Schema 关键字、外部记忆后端 | ⏳ 规划中 |
+| v0.7.0 | 2026-10-16 | `PLACEHOLDER`（`v0.7.0`） | MCP 资源 / 提示模板 / streamable HTTP 传输 | ✅ 已发布 |
+| v0.7.x | — | — | MCP 采样回调 / 通知订阅、剩余 Schema 关键字、外部记忆后端 | ⏳ 规划中 |
 | v1.0.0 | — | — | API 冻结、文档与发布流程 | ⏳ 规划中 |
 
-工程数据（截至 v0.6.0）：
+工程数据（截至 v0.7.0）：
 
-- FC 约束 **148 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10 / v0.6 7）；
-- **214 项测试**（205 单元 / 集成 + 9 doctest）全绿；clippy / fmt / doc 零告警；
-- 真实联调原始日志：`docs/integration/`（v0.3 / v0.4 / v0.5 / v0.6 四次完整记录，DeepSeek V4.1-Flash × MCP）；
+- FC 约束 **155 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10 / v0.6 7 / v0.7 7）；
+- **229 项测试**（220 单元 / 集成 + 9 doctest）全绿；clippy / fmt / doc 零告警；
+- 真实联调原始日志：`docs/integration/`（v0.3 ~ v0.7 五次完整记录，DeepSeek V4.1-Flash × MCP）；
 - 契约与变更记录：`docs/spec/core.md`（RFC：`docs/architecture/rfc/`）。
 
 ---
@@ -92,9 +93,21 @@
   `mycelium.tool`（tool/call_id）；联调日志可直接观察嵌套 span
 - [x] 真实联调重跑（五场景，日志 `docs/integration/2026-10-16-v0.6/`）
 
-### v0.6.x — 规划中（建议优先级从高到低）
+## v0.7 MCP 完整化 — v0.7.0 已完成（2026-10-16）
 
-- [ ] MCP 资源 / 提示模板 / HTTP 传输（从 v0.3 顺延）
+- [x] MCP 资源：`resources/list` / `resources/read`（`McpResource` / `McpResourceContent`；
+  缺 `text` / `blob` 显式报错、分页与 tools 一致）
+- [x] MCP 提示模板：`prompts/list` / `prompts/get`（`McpPrompt` / `McpPromptArgument` /
+  `McpPromptMessage`；内容支持单对象或数组，text / image 映射）
+- [x] streamable HTTP 传输：`McpClient::connect_http`（`Mcp-Session-Id` 传播、
+  JSON 与 SSE 响应、SSE 按 id 匹配、通知接受 202）
+- [x] 传输抽象重构：`Transport` trait（stdio / HTTP 共享全部能力方法）
+- [x] 真实联调场景 6：官方 `server-everything` 实测 7 资源 / 4 提示模板
+  （日志 `docs/integration/2026-10-16-v0.7/`）
+
+### v0.7.x — 规划中（建议优先级从高到低）
+
+- [ ] MCP 采样回调（server → client 请求）与服务端通知订阅（progress / list_changed）
 - [ ] JSON Schema 剩余关键字（`pattern` / `multipleOf` / `format` 等）
 - [ ] 外部记忆后端（向量检索 / 数据库，生态实现；SPI 已就绪）
 

@@ -93,6 +93,67 @@ fn standard_response(message: &Value) -> Option<Value> {
             };
             Some(json!({ "jsonrpc": "2.0", "id": id, "result": result }))
         }
+        "resources/list" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "resources": [
+                    { "uri": "file:///data/one.txt", "name": "one", "mimeType": "text/plain" },
+                    { "uri": "file:///data/two.bin", "name": "two" }
+                ]
+            }
+        })),
+        "resources/read" => {
+            let uri = message
+                .pointer("/params/uri")
+                .and_then(Value::as_str)
+                .unwrap_or_default();
+            let result = match uri {
+                "file:///data/one.txt" => {
+                    json!({ "contents": [ { "uri": uri, "mimeType": "text/plain", "text": "hello" } ] })
+                }
+                "file:///data/two.bin" => {
+                    json!({ "contents": [ { "uri": uri, "blob": "aGVsbG8=" } ] })
+                }
+                // 畸形条目：既无 text 也无 blob
+                "file:///broken" => json!({ "contents": [ { "uri": uri } ] }),
+                _ => json!({ "contents": [] }),
+            };
+            Some(json!({ "jsonrpc": "2.0", "id": id, "result": result }))
+        }
+        "prompts/list" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "prompts": [
+                    {
+                        "name": "greet",
+                        "description": "打招呼",
+                        "arguments": [
+                            { "name": "who", "description": "对象", "required": true },
+                            { "name": "tone" }
+                        ]
+                    }
+                ]
+            }
+        })),
+        "prompts/get" => Some(json!({
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": {
+                "messages": [
+                    { "role": "user", "content": { "type": "text", "text": "你好" } },
+                    {
+                        "role": "user",
+                        "content": [
+                            { "type": "text", "text": "第二段" },
+                            { "type": "image", "mimeType": "image/png", "data": "aGVsbG8=" },
+                            { "type": "audio" }
+                        ]
+                    }
+                ]
+            }
+        })),
         _ => Some(json!({
             "jsonrpc": "2.0",
             "id": id,
@@ -330,4 +391,120 @@ async fn mcp_tools_register_into_registry() {
 #[allow(dead_code)]
 fn _assert_spec_type(spec: &ToolSpec) -> &ToolName {
     spec.name()
+}
+
+#[tokio::test]
+async fn list_resources_maps_specs() {
+    let (client, server) = connect(standard_response).await;
+    let resources = client.list_resources().await.unwrap();
+    assert_eq!(resources.len(), 2);
+    assert_eq!(resources[0].uri, "file:///data/one.txt");
+    assert_eq!(resources[0].name, "one");
+    assert_eq!(resources[0].mime_type.as_deref(), Some("text/plain"));
+    assert_eq!(resources[1].description, None);
+    drop(client);
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn list_resources_follows_pagination() {
+    let pages = Arc::new(AtomicUsize::new(0));
+    let pages_for_server = Arc::clone(&pages);
+    let (client, server) = connect(move |message| {
+        if message.get("method").and_then(Value::as_str) == Some("resources/list") {
+            let id = message.get("id")?.clone();
+            let page = pages_for_server.fetch_add(1, Ordering::SeqCst);
+            let result = if page == 0 {
+                json!({
+                    "resources": [{ "uri": "file:///a", "name": "a" }],
+                    "nextCursor": "next"
+                })
+            } else {
+                json!({ "resources": [{ "uri": "file:///b", "name": "b" }] })
+            };
+            return Some(json!({ "jsonrpc": "2.0", "id": id, "result": result }));
+        }
+        init_only_response(message)
+    })
+    .await;
+
+    let resources = client.list_resources().await.unwrap();
+    let uris: Vec<&str> = resources
+        .iter()
+        .map(|resource| resource.uri.as_str())
+        .collect();
+    assert_eq!(uris, vec!["file:///a", "file:///b"]);
+    assert_eq!(pages.load(Ordering::SeqCst), 2);
+    drop(client);
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn read_resource_maps_contents() {
+    let (client, server) = connect(standard_response).await;
+
+    let text = client.read_resource("file:///data/one.txt").await.unwrap();
+    assert_eq!(text.len(), 1);
+    assert_eq!(text[0].text.as_deref(), Some("hello"));
+    assert_eq!(text[0].mime_type.as_deref(), Some("text/plain"));
+    assert_eq!(text[0].blob, None);
+
+    let blob = client.read_resource("file:///data/two.bin").await.unwrap();
+    assert_eq!(blob[0].blob.as_deref(), Some("aGVsbG8="));
+    assert_eq!(blob[0].text, None);
+
+    drop(client);
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn read_resource_rejects_malformed_entry() {
+    let (client, server) = connect(standard_response).await;
+    let error = client.read_resource("file:///broken").await.unwrap_err();
+    match error {
+        McpError::Protocol { message } => assert!(message.contains("text 与 blob")),
+        other => panic!("期望 Protocol，实际：{other:?}"),
+    }
+    drop(client);
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn list_prompts_maps_specs() {
+    let (client, server) = connect(standard_response).await;
+    let prompts = client.list_prompts().await.unwrap();
+    assert_eq!(prompts.len(), 1);
+    assert_eq!(prompts[0].name, "greet");
+    assert_eq!(prompts[0].description.as_deref(), Some("打招呼"));
+    assert_eq!(prompts[0].arguments.len(), 2);
+    assert_eq!(prompts[0].arguments[0].name, "who");
+    assert!(prompts[0].arguments[0].required);
+    // required 缺省 false
+    assert!(!prompts[0].arguments[1].required);
+    drop(client);
+    let _ = server.await;
+}
+
+#[tokio::test]
+async fn get_prompt_maps_messages() {
+    let (client, server) = connect(standard_response).await;
+    let messages = client.get_prompt("greet", None).await.unwrap();
+    assert_eq!(messages.len(), 2);
+    assert_eq!(messages[0].role, "user");
+    // 单对象内容
+    assert_eq!(
+        messages[0].content,
+        vec![ToolResultBlock::Text {
+            text: "你好".to_owned()
+        }]
+    );
+    // 数组内容：text / image 映射，audio 忽略
+    assert_eq!(messages[1].content.len(), 2);
+    assert!(matches!(
+        &messages[1].content[1],
+        ToolResultBlock::Image { media_type, data }
+            if media_type == "image/png" && data == "aGVsbG8="
+    ));
+    drop(client);
+    let _ = server.await;
 }

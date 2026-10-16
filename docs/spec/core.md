@@ -3,7 +3,7 @@
 > 本文件是 mycelium 形式化契约的**单一真实来源（Single Source of Truth）**。
 > 任何行为变更必须遵循：**先改本契约 → 再改测试 → 再改实现 → 契约漂移审计**（见 §5）。
 >
-> - 版本：v0.6.0（2026-10-16）
+> - 版本：v0.7.0（2026-10-16）
 > - 覆盖范围：`mycelium-core`、`mycelium-model`、`mycelium-tools`、`mycelium-runtime`、`mycelium-macros`、`mycelium-mcp`、`mycelium-provider-openai`、`mycelium`（门面）
 > - 状态列取值：`Pending`（待验证）/ `Passed`（验证通过）/ `Planned`（未实现，不计入本次覆盖率）
 
@@ -12,8 +12,8 @@
 - 本仓库交付物为**对外契约类 SDK**（公共 API 即契约）。依据 FSVDD §1.1，将以下推荐项升级为**强制**：
   测试与约束 1:1 对齐（100% 追溯）、状态机全路径遍历、基于属性的测试（PBT）、证伪抽查。
 - 不适用豁免（FSVDD §1.2）：本仓库承载对外接口与状态流转。
-- v0.6 覆盖：长期记忆 SPI（`Memory` + 进程内实现）、JSON Schema 子集扩充、tracing 结构化 span；
-  其余未实现部分列出 §4「计划约束」，不计入本次交付覆盖率。
+- v0.7 覆盖：MCP 资源 / 提示模板与 HTTP（streamable HTTP）传输；其余未实现部分列出 §4
+  「计划约束」，不计入本次交付覆盖率。
 
 ## 1. 术语与记法
 
@@ -322,6 +322,18 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `FC-POST-220` | 后置约束 | 运行期发出结构化 span 并携带定位字段：`mycelium.run`（`run_id` / `provider` / `model`）、`mycelium.step`（`step`）、`mycelium.tool`（`tool` / `call_id`）；span 生命周期与实际作用域一致（NEW/CLOSE 可观测） | `engine::tests::run_emits_structured_spans` | Passed |
 
+### 2.29 MCP 资源、提示与 HTTP 传输
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-POST-230` | 后置约束 | `resources/list` → `McpResource`（`uri` / `name` 必填；`description` / `mimeType` 可选）；分页语义同 `tools/list`；缺 `name` / `uri` → `Protocol` | `client::tests::list_resources_maps_specs`、`client::tests::list_resources_follows_pagination` | Passed |
+| `FC-POST-231` | 后置约束 | `resources/read` → `McpResourceContent`：`uri` 必有；`text` 与 `blob` 至少一项，否则 `Protocol`（显式失败） | `client::tests::read_resource_maps_contents`、`client::tests::read_resource_rejects_malformed_entry` | Passed |
+| `FC-POST-232` | 后置约束 | `prompts/list` → `McpPrompt`（`name` 必填；`arguments[].name` 必填、`required` 缺省 `false`） | `client::tests::list_prompts_maps_specs` | Passed |
+| `FC-POST-233` | 后置约束 | `prompts/get` → `McpPromptMessage`（`role` + 内容块：单对象或数组；`text` / `image` → `ToolResultBlock`；未知类型忽略） | `client::tests::get_prompt_maps_messages` | Passed |
+| `FC-POST-234` | 后置约束 | HTTP 传输（streamable HTTP）：initialize 捕获 `Mcp-Session-Id` 并附加到后续请求；`application/json` 与 `text/event-stream` 响应均可解析（SSE 按 id 匹配响应、其余消息忽略）；通知接受 202 | `http::tests::handshake_and_session_header`、`http::tests::sse_response_is_matched_by_id`、`http::tests::notification_accepts_202` | Passed |
+| `FC-ERR-090` | 异常处理 | HTTP 非 2xx → `Transport`（含状态码）；SSE 流在匹配响应前结束 → `TransportClosed` | `http::tests::http_error_status_maps_to_transport`、`http::tests::sse_ending_before_response_is_closed` | Passed |
+| `FC-ERR-091` | 异常处理 | HTTP 传输中的 JSON-RPC error 响应 → `McpError::Rpc`（与 stdio 语义一致） | `http::tests::jsonrpc_error_over_http` | Passed |
+
 ## 3. 属性测试（PBT，对应 FSVDD §4.2.1）
 
 | 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
@@ -332,11 +344,11 @@
 | `FC-INV-013` | 不变量（属性） | 对任意文本 `t`：`Message::user_text(t)` serde 往返恒等 | `properties::prop_message_roundtrip` | Passed |
 | `FC-INV-030` | 不变量（属性） | 对任意文本增量序列 `v`：装配结果 = 单 `Text` 块且文本等于 `v` 的顺序拼接 | `assembler::tests::prop_text_deltas_concatenate` | Passed |
 
-## 4. 计划约束（v0.6+ 未实现；不计入本次覆盖率）
+## 4. 计划约束（v0.7+ 未实现；不计入本次覆盖率）
 
 以下条目在实现对应功能时**必须**移入 §2 并补齐测试映射：
 
-- MCP：资源 / 提示模板、采样回调（server → client 请求）、HTTP 传输。
+- MCP：采样回调（server → client 请求）与服务端通知订阅（progress / list_changed）。
 - JSON Schema 剩余关键字（`pattern` / `multipleOf` / `format` 等，见 §2.27 说明）。
 - 向量检索等外部记忆后端（SPI 已在 §2.26 定义，由生态实现）。
 - 序列化兼容：核心类型新增字段需走非破坏性变更评审；枚举新增变体视为破坏性变更。
@@ -382,10 +394,35 @@ flowchart LR
 | v0.6.0 | 2026-10-16 | 新增长期记忆契约（§2.26）：`Memory` SPI、`MemoryRecord` / `MemoryId`、`InMemoryMemory`（关键字相关度） | 新增（非破坏性） |
 | v0.6.0 | 2026-10-16 | JSON Schema 子集扩充（§2.27）：`const` / `allOf` / `anyOf` / `oneOf` / 数值边界 / 字符串长度 / 数组约束 | 新增（校验更严格，属行为增强） |
 | v0.6.0 | 2026-10-16 | tracing 结构化 span（§2.28）：`mycelium.run` / `mycelium.step` / `mycelium.tool` | 新增 |
+| v0.7.0 | 2026-10-16 | MCP 完整化（§2.29）：`resources/list` / `resources/read` / `prompts/list` / `prompts/get` 与 HTTP（streamable HTTP）传输 | 新增（非破坏性） |
 
 ## 6. 验证报告（FC-Verification Report）
 
-### 6.1 v0.6（当前）
+### 6.1 v0.7（当前）
+
+- 验证日期：2026-10-16
+- 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
+- 执行命令与结果：
+  - `cargo test --workspace --all-features`：**220 个单元 / 集成测试 + 9 个 doctest** 全部通过；
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`：零告警；
+  - `cargo fmt --all --check`：通过；
+  - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features`：通过。
+- **真实模型联调**（六场景；原始日志 `docs/integration/2026-10-16-v0.7/`）：
+  - 前五场景保持通过；场景 6 经官方 `server-everything` 实测：
+    **资源 7 个**（首条 `demo://resource/static/document/architecture.md` → 1 内容块）、
+    **提示模板 4 个**（`simple-prompt` → 1 条消息）；
+  - filesystem 服务不实现 resources / prompts（-32601），客户端按协议显式上报并可继续。
+- 追溯覆盖率：§2 与 §3 共 **155 条**约束（43+45+27+16+10+7+7），100% 映射且全部 `Passed`。
+- 证伪抽查（Falsification Check，FSVDD §4.2.4）：
+
+| # | 故意破坏的约束 | 预期变红测试 | 结果 |
+| :--- | :--- | :--- | :--- |
+| F25 | HTTP 会话头不再传播 | `http::tests::handshake_and_session_header` | 变红 ✓（已还原） |
+| F26 | 资源内容缺失字段被静默接受 | `client::tests::read_resource_rejects_malformed_entry` | 变红 ✓（已还原） |
+| F27 | SSE 不按 id 匹配（取首条） | `http::tests::sse_response_is_matched_by_id` | 变红 ✓（已还原） |
+| F28 | 提示参数 `required` 缺省改为 `true` | `client::tests::list_prompts_maps_specs` | 变红 ✓（已还原） |
+
+### 6.2 v0.6（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -408,7 +445,7 @@ flowchart LR
 | F23 | `oneOf` 允许多分支同时命中 | `schema::tests::one_of_requires_exactly_one_branch` | 变红 ✓（已还原） |
 | F24 | 工具 span 移除 `instrument` | `engine::tests::run_emits_structured_spans` | 变红 ✓（已还原） |
 
-### 6.2 v0.5（历史）
+### 6.3 v0.5（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -435,7 +472,7 @@ flowchart LR
 | F19 | 取消不传播到子运行 | `engine::tests::agent_tool_propagates_cancel_to_child` | 变红 ✓（已还原） |
 | F20 | `AgentTool` 缺 `prompt` 不再校验 | `agent_tool::tests::missing_prompt_is_rejected` | 变红 ✓（已还原） |
 
-### 6.3 v0.4（历史）
+### 6.4 v0.4（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -462,7 +499,7 @@ flowchart LR
 | F15 | 结构化工具结果降级为纯文本 | `engine::tests::structured_tool_result_is_fed_back_intact` | 变红 ✓（已还原） |
 | F16 | 降级判据反转（可重试不降级） | `fallback::tests::falls_back_on_retryable_error` | 变红 ✓（已还原） |
 
-### 6.4 v0.3（历史）
+### 6.5 v0.3（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -496,7 +533,7 @@ flowchart LR
 > F9 首轮未变红暴露了原测试的弱点：它只校验 `call_id` 顺序，而 `call_id` 本身由调用顺序 zip 生成，
 > 内容错位无法被发现。已按 FSVDD 要求强化测试（校验 `call_id` 与 `content` 的对应关系）并复验通过。
 
-### 6.5 v0.2（历史）
+### 6.6 v0.2（历史）
 
 - 验证日期：2026-10-14
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -517,7 +554,7 @@ flowchart LR
 | F7 | 工具错误改为直接终止（不回灌） | `engine::tests::failing_tool_error_is_fed_back` | 变红 ✓（已还原） |
 | F8 | 429 限流映射改为普通 Api 错误 | `provider::tests::maps_error_status_rules` | 变红 ✓（已还原） |
 
-### 6.6 v0.1（历史）
+### 6.7 v0.1（历史）
 
 - 验证日期：2026-10-14；结果：55 个单元 / 属性测试 + 4 个 doctest 全部通过；clippy / fmt / doc 零告警。
 - 证伪抽查 F1 ~ F4（工具名长度上限、重名注册覆盖、转移边删除、饱和加法改回绕）全部按预期变红后还原。

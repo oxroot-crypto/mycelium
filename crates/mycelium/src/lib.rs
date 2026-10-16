@@ -22,7 +22,10 @@ pub mod prelude {
         RunState, SessionId, StopReason, ToolCall, ToolCallId, ToolChoice, ToolError, ToolName,
         ToolResultBlock, ToolSpec, Usage,
     };
-    pub use crate::mcp::{McpClient, McpError, McpServerInfo, McpTool};
+    pub use crate::mcp::{
+        McpClient, McpError, McpPrompt, McpPromptArgument, McpPromptMessage, McpResource,
+        McpResourceContent, McpServerInfo, McpTool,
+    };
     pub use crate::model::{
         DeltaAssembler, FallbackError, FallbackProvider, ModelCapabilities, ModelDelta,
         ModelProvider, ModelRequest, ModelResponse, ModelStream, async_trait, stream_from_deltas,

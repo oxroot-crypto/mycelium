@@ -1,0 +1,23 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "我们需要回答用户。用户说“请记住一个数字：7。回答「记住了」即可。” 我们需要遵守，只回答「记住了」。但是作为AI，能不能记住？系统没有记忆功能，但当前对话可以。直接回答记住了。注意用户要求回答「记住了」即可。所以最终只输出记住了。",
+          "type": "thinking"
+        },
+        {
+          "text": "记住了",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 1,
+  "usage": {
+    "input_tokens": 53,
+    "output_tokens": 67,
+    "reasoning_tokens": 65
+  }
+}
