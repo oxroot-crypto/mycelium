@@ -3,7 +3,7 @@
 > 本文件是 mycelium 形式化契约的**单一真实来源（Single Source of Truth）**。
 > 任何行为变更必须遵循：**先改本契约 → 再改测试 → 再改实现 → 契约漂移审计**（见 §5）。
 >
-> - 版本：v0.7.0（2026-10-16）
+> - 版本：v1.0.0（2026-10-17）
 > - 覆盖范围：`mycelium-core`、`mycelium-model`、`mycelium-tools`、`mycelium-runtime`、`mycelium-macros`、`mycelium-mcp`、`mycelium-provider-openai`、`mycelium`（门面）
 > - 状态列取值：`Pending`（待验证）/ `Passed`（验证通过）/ `Planned`（未实现，不计入本次覆盖率）
 
@@ -395,12 +395,12 @@ flowchart LR
 | v0.6.0 | 2026-10-16 | JSON Schema 子集扩充（§2.27）：`const` / `allOf` / `anyOf` / `oneOf` / 数值边界 / 字符串长度 / 数组约束 | 新增（校验更严格，属行为增强） |
 | v0.6.0 | 2026-10-16 | tracing 结构化 span（§2.28）：`mycelium.run` / `mycelium.step` / `mycelium.tool` | 新增 |
 | v0.7.0 | 2026-10-16 | MCP 完整化（§2.29）：`resources/list` / `resources/read` / `prompts/list` / `prompts/get` 与 HTTP（streamable HTTP）传输 | 新增（非破坏性） |
-| v1.0.0（发布准备） | 2026-10-17 | crates.io 发布名迁移（`mycelium-agent-*`；导入名不变）与发布工程（元数据 / 许可证 / crate README / 打包预检） | 非破坏性（导入名不变；未发布无存量影响） |
-| v1.0.0（发布准备） | 2026-10-17 | 公共 API 冻结正式生效：基线 = v0.7.0 API（semver-checks 全量无破坏差异）+ 发布名迁移；CI 增加 semver 门禁 | 冻结 |
+| v1.0.0 | 2026-10-17 | crates.io 发布名迁移（`mycelium-agent-*`；导入名不变）与发布工程（元数据 / 许可证 / crate README / 打包预检） | 非破坏性（导入名不变；未发布无存量影响） |
+| v1.0.0 | 2026-10-17 | 公共 API 冻结正式生效：基线 = v0.7.0 API（semver-checks 全量无破坏差异）+ 发布名迁移；CI 增加 semver 门禁 | 冻结 |
 
 ## 6. 验证报告（FC-Verification Report）
 
-### 6.1 v1.0（发布准备，2026-10-17）
+### 6.1 v1.0（2026-10-17）
 
 - 验证日期：2026-10-17
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）

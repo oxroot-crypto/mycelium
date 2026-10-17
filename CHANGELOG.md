@@ -1,12 +1,14 @@
 # Changelog
 
 本文件记录每个版本的显著变更；形式化契约的逐条变更记录见
-[`docs/spec/core.md`](docs/spec/core.md) §5。版本遵循语义化版本（`0.x` 阶段 minor 版本可包含破坏性变更，
-破坏性条目以 **BREAKING** 标注）。
+[`docs/spec/core.md`](docs/spec/core.md) §5。版本遵循语义化版本：`0.x` 阶段的破坏性条目以 **BREAKING** 标注；
+自 v1.0.0 起遵循 SemVer，破坏性变更需 major（政策见 [`api-freeze.md`](docs/architecture/api-freeze.md) §3）。
 
 ## [Unreleased]
 
-**v1.0.0 发布准备（公共 API 冻结）**
+## [1.0.0] - 2026-10-17
+
+**公共 API 冻结**
 
 - **发布名迁移**：crates.io 包名改为 `mycelium-agent` / `mycelium-agent-core` / `-model` / `-tools` /
   `-macros` / `-runtime` / `-mcp` / `-provider-openai`；Rust 导入名保持不变（`[lib] name` 固定），
@@ -89,7 +91,8 @@
 - 运行状态机（全路径测试）、错误分类矩阵、FC-Matrix 与测试 1:1 映射
 - CI（fmt / clippy / test）与 PBT（proptest）
 
-[Unreleased]: https://github.com/oxroot-crypto/mycelium/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/oxroot-crypto/mycelium/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/oxroot-crypto/mycelium/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/oxroot-crypto/mycelium/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/oxroot-crypto/mycelium/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/oxroot-crypto/mycelium/compare/v0.4.0...v0.5.0

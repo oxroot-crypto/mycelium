@@ -3,11 +3,11 @@
 > 适用于所有发布（含 0.x 阶段）。每个版本的发布检查单见 §2；crates.io 发布顺序见 §4；
 > v1.0.0 的精确执行步骤见 [`release-v1.0-runbook.md`](release-v1.0-runbook.md)。
 
-## 1. 一次性前置条件（v1.0 发布准备批次已完成，2026-10-17）
+## 1. 一次性前置条件（2026-10-17 完成）
 
 - [x] 许可证：**MIT OR Apache-2.0**；`LICENSE-MIT` / `LICENSE-APACHE` 已复制到全部 8 个 crate 目录，
       随 `cargo package` 产物发布（`Cargo.toml` 的 `license` 字段已设置）
-- [ ] crates.io 凭据（`CARGO_REGISTRY_TOKEN`，仅发布者本机 / 发布 job 可见）——待维护者提供
+- [x] crates.io 发布凭据（`CARGO_REGISTRY_TOKEN`，仅发布者本机 / 发布 job 可见）
 - [x] 移除 `[workspace.package]` 的 `publish = false`（连同各 crate 的 `publish.workspace = true`）
 - [x] 发布元数据完整（docs.rs 展示）：`description` / `repository` / `readme`（crate 级）/
       `keywords` / `categories`；门面附加 `[package.metadata.docs.rs] all-features = true`
@@ -37,7 +37,7 @@
    git tag -a vX.Y.Z -m "<主题>：<要点>（N 条约束）"
    git push && git push origin vX.Y.Z
    ```
-7. **发布到 crates.io**（§4；v1.0 首发必做）：`cargo publish -p <crate>`（逐 crate，等待索引刷新）
+7. **发布到 crates.io**（§4）：`cargo publish -p <crate>`（逐 crate，等待索引刷新）
 8. **发布后**：GitHub Release（tag 注解 + CHANGELOG 摘要）；验证 docs.rs 构建；
    归档联调日志；更新 roadmap 快照表与 CHANGELOG 链接
 
@@ -61,7 +61,7 @@ mycelium-agent-core
 ```
 
 - 每个 crate 发布后需等待 crates.io 索引可见再发布其依赖者；
-- **首次发布 bootstrap（实测行为，2026-10-17）**：cargo 打包会剥离 `path` 依赖并以注册表解析——
+- **v1.0.0 首次发布的 bootstrap（实测行为，2026-10-17）**：cargo 打包会剥离 `path` 依赖并以注册表解析——
   依赖方（除 `mycelium-agent-core` / `mycelium-agent-macros` 外）在依赖上架前执行 `cargo package`
   （含校验）会报 `no matching package named … found`，属预期；按上表顺序真实发布即可；
 - 预检命令：`cargo package --workspace --no-verify`（8 个 crate 全部打包，校验 README / LICENSE 入包）；

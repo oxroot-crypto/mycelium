@@ -14,7 +14,7 @@
 
 English | [简体中文](README.md)
 
-> **Status: v0.7.0.** Execution loop, concurrent tools, tool policies, retry & fallback, MCP
+> **Status: v1.0.0 (public API frozen).** Execution loop, concurrent tools, tool policies, retry & fallback, MCP
 > (tools / resources / prompts over stdio and HTTP), reasoning, multi-turn sessions, sub-agent
 > orchestration and a structured event stream are all available, verified against DeepSeek
 > V4.1-Flash; see [CHANGELOG.md](CHANGELOG.md) and the
@@ -95,22 +95,22 @@ Further reading:
 
 ### Add as a dependency
 
-The project is not published on crates.io yet (first release planned for v1.0); use a git
-dependency (or a `path` dependency during local development):
-
 ```toml
 # Cargo.toml
 [dependencies]
 # crates.io package mycelium-agent; Rust import name is pinned to mycelium (use mycelium::prelude::*;)
-mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium" }
+mycelium-agent = "1.0"
 # Optional: OpenAI-compatible provider; or enable the facade feature instead (below)
-mycelium-agent-provider-openai = { git = "https://github.com/oxroot-crypto/mycelium" }
+mycelium-agent-provider-openai = "1.0"
 ```
 
 ```toml
 # Equivalent: facade only, provider behind a feature flag
-mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium", features = ["provider-openai"] }
+mycelium-agent = { version = "1.0", features = ["provider-openai"] }
 ```
+
+To follow the latest development version on `main`, use a git dependency:
+`mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium" }`.
 
 ## 🚀 Quick Start
 
@@ -349,12 +349,11 @@ cargo deny check        # dependency audit (advisories / licenses / sources); in
 
 ## 🗺️ Roadmap
 
-- Released: all milestones v0.1 → v0.7 (architecture skeleton → complete MCP); tags and snapshot
-  table in [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md).
-- In progress: MCP sampling callbacks and server notification subscriptions, remaining JSON
-  Schema keywords, external memory backends.
-- v1.0 prep: API freeze review ([`api-freeze.md`](docs/architecture/api-freeze.md)) and the
-  crates.io release ([release process](docs/architecture/release-process.md)).
+- Released: all milestones v0.1 → v1.0 (architecture skeleton → API freeze and the crates.io
+  release); tags and the snapshot table in
+  [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md).
+- In progress (v1.x): MCP sampling callbacks and server notification subscriptions, remaining
+  JSON Schema keywords, external memory backends.
 
 ## 🤝 Contributing
 

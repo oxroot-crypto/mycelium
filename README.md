@@ -14,7 +14,7 @@
 
 [English](README.en.md) | 简体中文
 
-> **状态：v0.7.0**。执行循环、并发工具、权限策略、重试与降级、MCP（工具 / 资源 / 提示模板，
+> **状态：v1.0.0（公共 API 已冻结）**。执行循环、并发工具、权限策略、重试与降级、MCP（工具 / 资源 / 提示模板，
 > stdio 与 HTTP）、思考过程、多轮会话、子 Agent 编排与结构化事件流均已可用，并经 DeepSeek
 > V4.1-Flash 真实联调验证；
 > 版本历史见 [CHANGELOG.md](CHANGELOG.md)，后续计划见[路线图](docs/architecture/roadmap.md)。
@@ -94,21 +94,21 @@ mycelium-agent (facade: re-exports + prelude)
 
 ### 作为依赖引入
 
-项目尚未发布到 crates.io（首发计划 v1.0），当前请使用 git 依赖（本地开发可用 `path` 依赖）：
-
 ```toml
 # Cargo.toml
 [dependencies]
 # crates.io 包名 mycelium-agent；Rust 导入名固定为 mycelium（use mycelium::prelude::*;）
-mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium" }
+mycelium-agent = "1.0"
 # 可选：OpenAI 兼容 Provider；或改为启用门面 feature（见下）
-mycelium-agent-provider-openai = { git = "https://github.com/oxroot-crypto/mycelium" }
+mycelium-agent-provider-openai = "1.0"
 ```
 
 ```toml
 # 等价写法：只依赖门面，用 feature 打开 Provider
-mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium", features = ["provider-openai"] }
+mycelium-agent = { version = "1.0", features = ["provider-openai"] }
 ```
+
+跟随仓库 `main` 的最新开发版本可用 git 依赖：`mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium" }`。
 
 ## 🚀 快速开始
 
@@ -343,11 +343,9 @@ cargo deny check        # 依赖审计（安全公告 / 许可 / 来源）；安
 
 ## 🗺️ 路线图
 
-- 已发布：v0.1 → v0.7 全部里程碑（架构骨架 → MCP 完整化），tag 与快照表见
+- 已发布：v0.1 → v1.0 全部里程碑（架构骨架 → API 冻结与 crates.io 首发），tag 与快照表见
   [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md)。
-- 进行中：MCP 采样回调与服务端通知订阅、JSON Schema 剩余关键字、外部记忆后端。
-- v1.0 准备：API 冻结评审（[`api-freeze.md`](docs/architecture/api-freeze.md)）与
-  crates.io 首发（[发布流程](docs/architecture/release-process.md)）。
+- 进行中（v1.x）：MCP 采样回调与服务端通知订阅、JSON Schema 剩余关键字、外部记忆后端。
 
 ## 🤝 贡献
 

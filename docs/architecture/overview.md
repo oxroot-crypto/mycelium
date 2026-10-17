@@ -68,7 +68,7 @@ flowchart TB
 | `mycelium-runtime` | 执行引擎：装配、循环（v0.2）、会话、钩子 | `AgentRuntime`、`AgentRuntimeBuilder`、`Session`、`RunHooks` | 装配完成，循环未实现 |
 | `mycelium` | 门面：re-export、prelude、端到端示例 | `prelude` | 完成 |
 
-> v1.0 发布名：上表 crate 的 crates.io 包名为 `mycelium-agent-*`；Rust 导入名保持 `mycelium_*`
+> 发布名（v1.0 起）：上表 crate 的 crates.io 包名为 `mycelium-agent-*`；Rust 导入名保持 `mycelium_*`
 > 不变（`[lib] name` 固定），映射与依赖写法见 [`migration-v0-to-v1.md`](migration-v0-to-v1.md) §1。
 
 ## 5. 核心概念

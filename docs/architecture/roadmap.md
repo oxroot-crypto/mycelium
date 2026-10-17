@@ -2,7 +2,7 @@
 
 > 原则：每一档必须保持 `cargo build / test / clippy / fmt` 全绿，且 FC-Matrix 与测试同步演进。
 
-## 进度快照（截至 v1.0 发布准备）
+## 进度快照（截至 v1.0.0）
 
 | 版本 | 发布日 | 提交（git tag） | 主题 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -14,9 +14,9 @@
 | v0.6.0 | 2026-10-16 | `9fbe52a`（`v0.6.0`） | 长期记忆 SPI、JSON Schema 扩充、tracing 结构化 span | ✅ 已发布 |
 | v0.7.0 | 2026-10-16 | `29318cc`（`v0.7.0`） | MCP 资源 / 提示模板 / streamable HTTP 传输 | ✅ 已发布 |
 | v0.7.x | — | — | MCP 采样回调 / 通知订阅、剩余 Schema 关键字、外部记忆后端（转入 v1.x） | ⏳ 规划中 |
-| v1.0.0 | 待发布 | `1573cf9`（发布准备批次） | API 冻结：发布名迁移、semver 门禁、迁移指南、发布工程 | ⏳ 发布准备完成 |
+| v1.0.0 | 2026-10-17 | `1573cf9`（发布准备批次） | API 冻结：发布名迁移、semver 门禁、迁移指南、发布工程 | ✅ 已发布 |
 
-工程数据（截至 v0.7.0）：
+工程数据（截至 v1.0.0）：
 
 - FC 约束 **155 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10 / v0.6 7 / v0.7 7）；
 - **231 项测试**（220 单元 / 集成 + 11 doctest）全绿；clippy / fmt / doc / deny 零告警；
@@ -114,7 +114,7 @@
 - [ ] JSON Schema 剩余关键字（`pattern` / `multipleOf` / `format` 等）
 - [ ] 外部记忆后端（向量检索 / 数据库，生态实现；SPI 已就绪）
 
-## v1.0 API 稳定 — 发布准备完成（2026-10-17）
+## v1.0 API 稳定 — 已完成（2026-10-17）
 
 - [x] license 决策与许可证文件：**MIT OR Apache-2.0**（已复制到全部 8 个 crate 目录，随包发布）
 - [x] 依赖审计接入 CI：`cargo-deny` + `deny.toml`（安全公告 / 许可 / 来源 / 重复版本）
@@ -126,7 +126,7 @@
       发布元数据（keywords / categories / readme / docs.rs all-features）就绪
 - [x] 迁移指南（v0.1 → v1.0）与 v1.0 发布执行手册（`docs/architecture/release-v1.0-runbook.md`）
 - [x] 发布准备批次全量验证 + 六场景真实联调（日志 `docs/integration/2026-10-17-v1.0/`）
-- [ ] crates.io 首发（凭据与 CI 计费解锁后，由 release 分支按手册执行）
+- [x] crates.io 首发：`mycelium-agent-*` 8 个包按依赖拓扑顺序发布（步骤见 v1.0 发布手册）
 - [ ] 性能基准（criterion）与示例集扩充（转入 v1.x）
 
 ## 工程化 backlog

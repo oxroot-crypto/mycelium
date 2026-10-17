@@ -22,7 +22,7 @@
 已被第三方项目占用，无法在 crates.io 发布。
 
 ```toml
-# v1.0 首发后（crates.io）；首发前请使用 git 依赖
+# crates.io 依赖（v1.0 起）
 [dependencies]
 mycelium-agent = "1.0"
 # 等价写法：门面 + feature（代替直接依赖 mycelium-agent-provider-openai）

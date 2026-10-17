@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "0.7.0"
+version = "1.0.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 # MSRV：以已在 stable 1.97.1 完成验证的最低次版本声明，不得声称未验证的支持范围。
@@ -22,18 +22,18 @@ rust-version = "1.97"
 repository = "https://github.com/oxroot-crypto/mycelium"
 # readme：各 crate 目录内的 README.md（门面与根 README 保持一致）。
 readme = "README.md"
-# 注意：v1.0 发布准备已移除 `publish = false`；crates.io 首发必须先完成
-# release-process.md §2 检查单（版本号 / CHANGELOG / 联调日志 / 全量验证），
-# 且只能在 release 分支按 §4 依赖拓扑顺序执行。
+# 注意：`publish` 自 v1.0.0 起开放；任何发布必须先完成 release-process.md §2 检查单
+# （版本号 / CHANGELOG / 联调日志 / 全量验证），并按 §4 依赖拓扑顺序执行
+# （v1.0.0 步骤见 docs/architecture/release-v1.0-runbook.md）。
 
 [workspace.dependencies]
-mycelium-agent-core = { path = "crates/mycelium-core", version = "0.7.0" }
-mycelium-agent-macros = { path = "crates/mycelium-macros", version = "0.7.0" }
-mycelium-agent-mcp = { path = "crates/mycelium-mcp", version = "0.7.0" }
-mycelium-agent-model = { path = "crates/mycelium-model", version = "0.7.0" }
-mycelium-agent-provider-openai = { path = "crates/mycelium-provider-openai", version = "0.7.0" }
-mycelium-agent-runtime = { path = "crates/mycelium-runtime", version = "0.7.0" }
-mycelium-agent-tools = { path = "crates/mycelium-tools", version = "0.7.0" }
+mycelium-agent-core = { path = "crates/mycelium-core", version = "1.0.0" }
+mycelium-agent-macros = { path = "crates/mycelium-macros", version = "1.0.0" }
+mycelium-agent-mcp = { path = "crates/mycelium-mcp", version = "1.0.0" }
+mycelium-agent-model = { path = "crates/mycelium-model", version = "1.0.0" }
+mycelium-agent-provider-openai = { path = "crates/mycelium-provider-openai", version = "1.0.0" }
+mycelium-agent-runtime = { path = "crates/mycelium-runtime", version = "1.0.0" }
+mycelium-agent-tools = { path = "crates/mycelium-tools", version = "1.0.0" }
 
 async-trait = "0.1"
 futures-core = "0.3"
