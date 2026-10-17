@@ -39,8 +39,9 @@ cargo package --workspace --no-verify          # 打包预检（8 个 crate，�
 ## 3. 打标与推送
 
 ```bash
-HASH=$(git rev-parse --short HEAD)     # tag 指向的提交（记录到 roadmap 快照表）
-git tag -a v1.0.0 -m "v1.0.0：API 冻结（导入名不变；crates.io 发布名 mycelium-agent-*）"
+# tag 指向「发布提交」（版本与文档定稿，即 roadmap 快照表记录的那一条：571e451）；
+# 其后的文档记录提交不打 tag。
+git tag -a v1.0.0 571e451 -m "v1.0.0：API 冻结（导入名不变；crates.io 发布名 mycelium-agent-*）"
 git push origin release/v1.0.0
 git push origin v1.0.0
 ```
