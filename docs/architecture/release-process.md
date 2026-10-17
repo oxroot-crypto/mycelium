@@ -51,13 +51,13 @@
 
 ```text
 mycelium-agent-core
-  ├── mycelium-agent-macros（被 tools 依赖，先于 tools 发布）
+  ├── mycelium-agent-macros（先于 tools；tools 依赖它）
   ├── mycelium-agent-model
   ├── mycelium-agent-tools（依赖 core / macros）
   ├── mycelium-agent-mcp（依赖 core / tools）
-  └── mycelium-agent-provider-openai（依赖 core / model）
-        └── mycelium-agent-runtime（依赖 core / model / tools）
-              └── mycelium-agent（门面）
+  ├── mycelium-agent-runtime（依赖 core / model / tools）
+  ├── mycelium-agent-provider-openai（依赖 core / model；dev-dependencies 含 runtime，须在其后）
+  └── mycelium-agent（门面；依赖以上全部）
 ```
 
 - 每个 crate 发布后需等待 crates.io 索引可见再发布其依赖者；
@@ -66,6 +66,11 @@ mycelium-agent-core
   （含校验）会报 `no matching package named … found`，属预期；按上表顺序真实发布即可；
 - 预检命令：`cargo package --workspace --no-verify`（8 个 crate 全部打包，校验 README / LICENSE 入包）；
   无内部依赖的 crate 可做完整 `cargo package` 验证构建。
+- 发布顺序按「依赖 + **dev-dependencies**」拓扑解析：`mycelium-agent-provider-openai` 的 dev-dependencies
+  含 `mycelium-agent-runtime`，发布校验会解析 dev-deps，故 runtime 必须先上架（v1.0.0 首发实测：
+  顺序错误时报 `no matching package named mycelium-agent-runtime found`）。
+- 新包限流：crates.io 对「新包」发布有频率限制（v1.0.0 首发 8 个包期间触发两次 429，错误信息给出
+  可重试时间）；续发具备幂等性——对已上传版本重试会返回 `already uploaded`，按已发布跳过即可。
 
 ## 5. 回滚策略
 

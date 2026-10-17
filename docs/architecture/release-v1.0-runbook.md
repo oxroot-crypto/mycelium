@@ -50,13 +50,13 @@ git push origin v1.0.0
 
 ```text
 mycelium-agent-core
-  ├── mycelium-agent-macros（被 tools 依赖，先于 tools 发布）
+  ├── mycelium-agent-macros（先于 tools；tools 依赖它）
   ├── mycelium-agent-model
   ├── mycelium-agent-tools（依赖 core / macros）
   ├── mycelium-agent-mcp（依赖 core / tools）
-  └── mycelium-agent-provider-openai（依赖 core / model）
-        └── mycelium-agent-runtime（依赖 core / model / tools）
-              └── mycelium-agent（门面）
+  ├── mycelium-agent-runtime（依赖 core / model / tools）
+  ├── mycelium-agent-provider-openai（依赖 core / model；dev-dependencies 含 runtime，须在其后）
+  └── mycelium-agent（门面；依赖以上全部）
 ```
 
 - 每步：`cargo publish -p <包名>`，等待索引可见后再发布其依赖者
@@ -66,6 +66,9 @@ mycelium-agent-core
   按上表顺序真实发布即可。预检用 `cargo package --workspace --no-verify`。
 - `cargo publish --dry-run` 仅对 `mycelium-agent-core` / `mycelium-agent-macros`
   （无内部依赖）可完整执行；其余 crate 的完整校验发生在真实发布后的构建步骤。
+- 发布顺序按「依赖 + **dev-dependencies**」拓扑解析（`mycelium-agent-provider-openai` 的 dev-deps
+  含 runtime，故 runtime 先上架）；新包发布有限流，触发 429 时按错误给出的时间等待重试，
+  已上传版本重试会报 `already uploaded`，跳过即可（v1.0.0 首发实测）。
 
 ## 5. 发布后
 
