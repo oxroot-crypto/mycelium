@@ -34,6 +34,7 @@
 - [路线图](#-路线图)
 - [贡献](#-贡献)
 - [许可证](#-许可证)
+- [致谢](#-致谢)
 
 ## ✨ 功能特性
 
@@ -362,3 +363,7 @@ cargo deny check        # 依赖审计（安全公告 / 许可 / 来源）；安
 
 - [LICENSE-MIT](LICENSE-MIT)
 - [LICENSE-APACHE](LICENSE-APACHE)
+
+## 🙏 致谢
+
+- 本仓库的代码与文档**全部**由 AI 生成：**deepseek-v4.1-flash**；详见 [DISCLOSURE.md](DISCLOSURE.md)。

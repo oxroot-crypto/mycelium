@@ -17,6 +17,8 @@
   （`keywords` / `categories` / `readme` / docs.rs `all-features`）；工作区移除 `publish = false`
 - CI 新增：API 兼容门禁（semver job，基线 tag `v1.0.0`）与打包预检（`cargo package --workspace --no-verify`）
 - 新增文档：[迁移指南](docs/architecture/migration-v0-to-v1.md) / [v1.0 发布手册](docs/architecture/release-v1.0-runbook.md)
+- 新增 AI 生成声明：[`DISCLOSURE.md`](DISCLOSURE.md) / [`DISCLOSURE.en.md`](DISCLOSURE.en.md)
+  （全部代码与文档由 **deepseek-v4.1-flash** 生成）
 - 历史条目补注：0.2.0 / 0.3.0 的枚举新增变体属破坏性变更（此前未按 **BREAKING** 标注，现补注）
 
 ## [0.7.0] - 2026-10-16
