@@ -48,26 +48,29 @@
 ## 🧩 架构
 
 ```text
-mycelium (facade: re-exports + prelude)
-   ├── mycelium-runtime (execution loop / events / sessions / hooks)
-   │      ├── mycelium-model (ModelProvider SPI / streaming assembler)
-   │      └── mycelium-tools (Tool SPI / registry / validation / policy)
-   ├── mycelium-provider-openai (OpenAI-compatible provider, DeepSeek ready)
-   ├── mycelium-mcp (MCP client: stdio + HTTP, tools / resources / prompts)
-   ├── mycelium-macros (#[tool] derive macro)
-   └── mycelium-core (messages / tool protocol / events / state machine / errors / config)
+mycelium-agent (facade: re-exports + prelude)
+   ├── mycelium-agent-runtime (execution loop / events / sessions / hooks)
+   │      ├── mycelium-agent-model (ModelProvider SPI / streaming assembler)
+   │      └── mycelium-agent-tools (Tool SPI / registry / validation / policy)
+   ├── mycelium-agent-provider-openai (OpenAI-compatible provider, DeepSeek ready)
+   ├── mycelium-agent-mcp (MCP client: stdio + HTTP, tools / resources / prompts)
+   ├── mycelium-agent-macros (#[tool] derive macro)
+   └── mycelium-agent-core (messages / tool protocol / events / state machine / errors / config)
 ```
 
-| crate | 职责 |
+> 包名与导入名解耦：crates.io 包名为 `mycelium-agent-*`，代码导入名保持 `mycelium_*`
+> （`[lib] name` 固定；例如依赖 `mycelium-agent-core`，代码仍写 `use mycelium_core::…`）。
+
+| crate（crates.io 包名） | 职责 |
 | :--- | :--- |
-| `mycelium-core` | 领域内核：标识、消息（含思考块）、工具协议、事件、运行状态机、错误分类矩阵、配置 |
-| `mycelium-model` | 模型提供方抽象（SPI）：`ModelProvider` / `ModelRequest` / `ModelDelta` / 流式装配器 |
-| `mycelium-tools` | 工具抽象（SPI）、注册表、入参校验（JSON Schema 子集）、权限策略、`#[tool]` 宏 |
-| `mycelium-runtime` | 执行引擎：`AgentRuntime` / 并发工具 / 预算 / 取消 / `AgentRun` / `Session` / `RunHooks` |
-| `mycelium-macros` | 过程宏：`#[tool]` 由函数生成工具实现与 JSON Schema |
-| `mycelium-mcp` | MCP 客户端：stdio 与 streamable HTTP；工具 / 资源 / 提示模板 |
-| `mycelium-provider-openai` | OpenAI 兼容 Provider（Chat Completions、流式 SSE、思考链） |
-| `mycelium` | 门面：统一 re-export 与 `prelude`（可选 feature：`provider-openai`） |
+| `mycelium-agent-core` | 领域内核：标识、消息（含思考块）、工具协议、事件、运行状态机、错误分类矩阵、配置 |
+| `mycelium-agent-model` | 模型提供方抽象（SPI）：`ModelProvider` / `ModelRequest` / `ModelDelta` / 流式装配器 |
+| `mycelium-agent-tools` | 工具抽象（SPI）、注册表、入参校验（JSON Schema 子集）、权限策略、`#[tool]` 宏 |
+| `mycelium-agent-runtime` | 执行引擎：`AgentRuntime` / 并发工具 / 预算 / 取消 / `AgentRun` / `Session` / `RunHooks` |
+| `mycelium-agent-macros` | 过程宏：`#[tool]` 由函数生成工具实现与 JSON Schema |
+| `mycelium-agent-mcp` | MCP 客户端：stdio 与 streamable HTTP；工具 / 资源 / 提示模板 |
+| `mycelium-agent-provider-openai` | OpenAI 兼容 Provider（Chat Completions、流式 SSE、思考链） |
+| `mycelium-agent` | 门面：统一 re-export 与 `prelude`（可选 feature：`provider-openai`） |
 
 延伸阅读：
 
@@ -90,19 +93,20 @@ mycelium (facade: re-exports + prelude)
 
 ### 作为依赖引入
 
-项目尚未发布到 crates.io（`publish = false`），请使用 git 依赖（本地开发可用 `path` 依赖）：
+项目尚未发布到 crates.io（首发计划 v1.0），当前请使用 git 依赖（本地开发可用 `path` 依赖）：
 
 ```toml
 # Cargo.toml
 [dependencies]
-mycelium = { git = "https://github.com/oxroot-crypto/mycelium" }
+# crates.io 包名 mycelium-agent；Rust 导入名固定为 mycelium（use mycelium::prelude::*;）
+mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium" }
 # 可选：OpenAI 兼容 Provider；或改为启用门面 feature（见下）
-mycelium-provider-openai = { git = "https://github.com/oxroot-crypto/mycelium" }
+mycelium-agent-provider-openai = { git = "https://github.com/oxroot-crypto/mycelium" }
 ```
 
 ```toml
 # 等价写法：只依赖门面，用 feature 打开 Provider
-mycelium = { git = "https://github.com/oxroot-crypto/mycelium", features = ["provider-openai"] }
+mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium", features = ["provider-openai"] }
 ```
 
 ## 🚀 快速开始
@@ -123,7 +127,7 @@ cargo build --workspace
 3. 运行内置示例
 
 ```bash
-cargo run -p mycelium --example basic
+cargo run -p mycelium-agent --example basic
 ```
 
 预期输出：
@@ -137,7 +141,7 @@ cargo run -p mycelium --example basic
 
 ### 嵌入应用：最小 Provider 与工具
 
-需要 `mycelium`、`serde_json` 与 `tokio`（`macros`、`rt-multi-thread`）依赖，可作为 `src/main.rs` 直接运行：
+需要 `mycelium-agent`（导入名 `mycelium`）、`serde_json` 与 `tokio`（`macros`、`rt-multi-thread`）依赖，可作为 `src/main.rs` 直接运行：
 
 ```rust
 use std::sync::Arc;
@@ -217,7 +221,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```bash
 cp .env.example .env    # 填入 DEEPSEEK_API_KEY（.env 已在 .gitignore 中）
-cargo run -p mycelium-provider-openai --example deepseek
+cargo run -p mycelium-agent-provider-openai --example deepseek
 ```
 
 预期输出（节选）：

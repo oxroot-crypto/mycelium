@@ -6,6 +6,19 @@
 
 ## [Unreleased]
 
+**v1.0.0 发布准备（公共 API 冻结）**
+
+- **发布名迁移**：crates.io 包名改为 `mycelium-agent` / `mycelium-agent-core` / `-model` / `-tools` /
+  `-macros` / `-runtime` / `-mcp` / `-provider-openai`；Rust 导入名保持不变（`[lib] name` 固定），
+  源码零改动。背景：`mycelium` / `mycelium-core` / `mycelium-runtime` / `mycelium-macros` 已被第三方占用
+- **API 冻结正式生效**（[`api-freeze.md`](docs/architecture/api-freeze.md)，基线 v1.0.0）：7 个冻结 crate 经
+  `cargo-semver-checks` 对 `v0.7.0` 全量验证——无破坏性差异
+- 发布工程：全部 crate 目录内置双许可证与 crate 级 README；元数据补齐
+  （`keywords` / `categories` / `readme` / docs.rs `all-features`）；工作区移除 `publish = false`
+- CI 新增：API 兼容门禁（semver job，基线 tag `v1.0.0`）与打包预检（`cargo package --workspace --no-verify`）
+- 新增文档：[迁移指南](docs/architecture/migration-v0-to-v1.md) / [v1.0 发布手册](docs/architecture/release-v1.0-runbook.md)
+- 历史条目补注：0.2.0 / 0.3.0 的枚举新增变体属破坏性变更（此前未按 **BREAKING** 标注，现补注）
+
 ## [0.7.0] - 2026-10-16
 
 **MCP 完整化**
@@ -53,6 +66,8 @@
 - 新增 `mycelium-macros`：`#[tool]` 派生宏
 - 新增 `mycelium-mcp`：MCP 客户端（stdio、工具能力）
 - 思考过程支持：`Thinking` 内容块 / `ModelThinkingDelta` / `reasoning_tokens` / `thinking` + `reasoning_effort`
+- **BREAKING**：枚举新增变体——`ContentBlock::Thinking` / `ModelDelta::ThinkingDelta` /
+  `AgentEventKind::ModelThinkingDelta`；`Usage` 新增 `reasoning_tokens`（结构体新增字段带默认值）
 - 联调：DeepSeek V4.1-Flash 首次真实联调，原始日志随仓库保留
 
 ## [0.2.0] - 2026-10-14
@@ -62,6 +77,7 @@
 - 执行引擎（顺序工具、预算、取消、超时）与流式增量装配器
 - 事件系统（`run_events` 流式 API）与工具入参 JSON Schema 子集校验
 - 新增 `mycelium-provider-openai`（OpenAI 兼容 Provider）
+- **BREAKING**：新增 `Role::Tool` 与 `Message::tool_result`（枚举新增变体；0.x 未发布，无外部影响）
 
 ## [0.1.0] - 2026-10-14
 

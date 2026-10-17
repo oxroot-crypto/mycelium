@@ -45,7 +45,7 @@ docs/integration/
 
 ```bash
 # 前置：仓库根目录 .env 配置 DEEPSEEK_API_KEY；本机可用 npx；网络可达 api.deepseek.com
-cargo run -p mycelium --features provider-openai --example live_integration -- docs/integration/<日期>
+cargo run -p mycelium-agent --features provider-openai --example live_integration -- docs/integration/<日期>
 ```
 
 覆盖场景：

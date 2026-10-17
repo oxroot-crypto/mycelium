@@ -50,3 +50,36 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
         with:
           command: check advisories bans licenses sources
+
+  package:
+    name: 打包预检（cargo package）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Package (no verify)
+        run: cargo package --workspace --no-verify
+
+  semver:
+    name: API 兼容性（cargo-semver-checks）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 需要 tag 历史以定位基线
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@cargo-semver-checks
+      - name: Check API compatibility vs baseline tag
+        run: |
+          BASELINE="v1.0.0"
+          if ! git rev-parse -q --verify "refs/tags/${BASELINE}" >/dev/null; then
+            echo "基线 tag ${BASELINE} 尚未创建（v1.0.0 发布后生效），跳过 API 兼容检查。"
+            exit 0
+          fi
+          for pkg in mycelium-agent-core mycelium-agent-model mycelium-agent-tools \
+                     mycelium-agent-runtime mycelium-agent-mcp \
+                     mycelium-agent-provider-openai mycelium-agent; do
+            cargo semver-checks check-release --baseline-rev "${BASELINE}" -p "${pkg}"
+          done

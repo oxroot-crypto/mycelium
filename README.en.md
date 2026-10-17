@@ -49,26 +49,29 @@ into an application (framework shape) and can grow into a local agent runtime (s
 ## 🧩 Architecture
 
 ```text
-mycelium (facade: re-exports + prelude)
-   ├── mycelium-runtime (execution loop / events / sessions / hooks)
-   │      ├── mycelium-model (ModelProvider SPI / streaming assembler)
-   │      └── mycelium-tools (Tool SPI / registry / validation / policy)
-   ├── mycelium-provider-openai (OpenAI-compatible provider, DeepSeek ready)
-   ├── mycelium-mcp (MCP client: stdio + HTTP, tools / resources / prompts)
-   ├── mycelium-macros (#[tool] derive macro)
-   └── mycelium-core (messages / tool protocol / events / state machine / errors / config)
+mycelium-agent (facade: re-exports + prelude)
+   ├── mycelium-agent-runtime (execution loop / events / sessions / hooks)
+   │      ├── mycelium-agent-model (ModelProvider SPI / streaming assembler)
+   │      └── mycelium-agent-tools (Tool SPI / registry / validation / policy)
+   ├── mycelium-agent-provider-openai (OpenAI-compatible provider, DeepSeek ready)
+   ├── mycelium-agent-mcp (MCP client: stdio + HTTP, tools / resources / prompts)
+   ├── mycelium-agent-macros (#[tool] derive macro)
+   └── mycelium-agent-core (messages / tool protocol / events / state machine / errors / config)
 ```
 
-| Crate | Responsibility |
+> Package and import names are decoupled: crates.io packages are `mycelium-agent-*` while code imports
+> stay `mycelium_*` (`[lib] name` is pinned; depend on `mycelium-agent-core`, write `use mycelium_core::…`).
+
+| Crate (crates.io package) | Responsibility |
 | :--- | :--- |
-| `mycelium-core` | Domain kernel: ids, messages (incl. thinking blocks), tool protocol, events, run state machine, error taxonomy, configuration |
-| `mycelium-model` | Model provider SPI: `ModelProvider` / `ModelRequest` / `ModelDelta` / streaming assembler |
-| `mycelium-tools` | Tool SPI, registry, argument validation (JSON Schema subset), tool policies, `#[tool]` macro |
-| `mycelium-runtime` | Execution engine: `AgentRuntime` / concurrent tools / budgets / cancellation / `AgentRun` / `Session` / `RunHooks` |
-| `mycelium-macros` | Proc macros: `#[tool]` generates the tool impl and JSON Schema from a function |
-| `mycelium-mcp` | MCP client: stdio and streamable HTTP; tools / resources / prompts |
-| `mycelium-provider-openai` | OpenAI-compatible provider (Chat Completions, streaming SSE, reasoning) |
-| `mycelium` | Facade: unified re-exports and `prelude` (optional feature: `provider-openai`) |
+| `mycelium-agent-core` | Domain kernel: ids, messages (incl. thinking blocks), tool protocol, events, run state machine, error taxonomy, configuration |
+| `mycelium-agent-model` | Model provider SPI: `ModelProvider` / `ModelRequest` / `ModelDelta` / streaming assembler |
+| `mycelium-agent-tools` | Tool SPI, registry, argument validation (JSON Schema subset), tool policies, `#[tool]` macro |
+| `mycelium-agent-runtime` | Execution engine: `AgentRuntime` / concurrent tools / budgets / cancellation / `AgentRun` / `Session` / `RunHooks` |
+| `mycelium-agent-macros` | Proc macros: `#[tool]` generates the tool impl and JSON Schema from a function |
+| `mycelium-agent-mcp` | MCP client: stdio and streamable HTTP; tools / resources / prompts |
+| `mycelium-agent-provider-openai` | OpenAI-compatible provider (Chat Completions, streaming SSE, reasoning) |
+| `mycelium-agent` | Facade: unified re-exports and `prelude` (optional feature: `provider-openai`) |
 
 Further reading:
 
@@ -91,20 +94,21 @@ Further reading:
 
 ### Add as a dependency
 
-The project is not published on crates.io yet (`publish = false`); use a git dependency (or a
-`path` dependency during local development):
+The project is not published on crates.io yet (first release planned for v1.0); use a git
+dependency (or a `path` dependency during local development):
 
 ```toml
 # Cargo.toml
 [dependencies]
-mycelium = { git = "https://github.com/oxroot-crypto/mycelium" }
+# crates.io package mycelium-agent; Rust import name is pinned to mycelium (use mycelium::prelude::*;)
+mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium" }
 # Optional: OpenAI-compatible provider; or enable the facade feature instead (below)
-mycelium-provider-openai = { git = "https://github.com/oxroot-crypto/mycelium" }
+mycelium-agent-provider-openai = { git = "https://github.com/oxroot-crypto/mycelium" }
 ```
 
 ```toml
 # Equivalent: facade only, provider behind a feature flag
-mycelium = { git = "https://github.com/oxroot-crypto/mycelium", features = ["provider-openai"] }
+mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium", features = ["provider-openai"] }
 ```
 
 ## 🚀 Quick Start
@@ -125,7 +129,7 @@ cargo build --workspace
 3. Run the built-in example
 
 ```bash
-cargo run -p mycelium --example basic
+cargo run -p mycelium-agent --example basic
 ```
 
 Expected output:
@@ -139,8 +143,8 @@ Expected output:
 
 ### Embed in your app: a minimal provider and tool
 
-Requires the `mycelium`, `serde_json` and `tokio` (`macros`, `rt-multi-thread`) dependencies;
-the snippet runs as-is in `src/main.rs`:
+Requires the `mycelium-agent` (import name `mycelium`), `serde_json` and `tokio` (`macros`,
+`rt-multi-thread`) dependencies; the snippet runs as-is in `src/main.rs`:
 
 ```rust
 use std::sync::Arc;
@@ -220,7 +224,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```bash
 cp .env.example .env    # fill in DEEPSEEK_API_KEY (.env is gitignored)
-cargo run -p mycelium-provider-openai --example deepseek
+cargo run -p mycelium-agent-provider-openai --example deepseek
 ```
 
 Expected output (excerpt):
