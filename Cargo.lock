@@ -640,23 +640,23 @@ dependencies = [
 ]
 
 [[package]]
-name = "mycelium"
+name = "mycelium-agent"
 version = "0.7.0"
 dependencies = [
  "futures-util",
- "mycelium-core",
- "mycelium-mcp",
- "mycelium-model",
- "mycelium-provider-openai",
- "mycelium-runtime",
- "mycelium-tools",
+ "mycelium-agent-core",
+ "mycelium-agent-mcp",
+ "mycelium-agent-model",
+ "mycelium-agent-provider-openai",
+ "mycelium-agent-runtime",
+ "mycelium-agent-tools",
  "serde_json",
  "tokio",
  "tracing-subscriber",
 ]
 
 [[package]]
-name = "mycelium-core"
+name = "mycelium-agent-core"
 version = "0.7.0"
 dependencies = [
  "proptest",
@@ -668,7 +668,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "mycelium-macros"
+name = "mycelium-agent-macros"
 version = "0.7.0"
 dependencies = [
  "proc-macro2",
@@ -677,13 +677,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "mycelium-mcp"
+name = "mycelium-agent-mcp"
 version = "0.7.0"
 dependencies = [
  "async-trait",
  "futures-util",
- "mycelium-core",
- "mycelium-tools",
+ "mycelium-agent-core",
+ "mycelium-agent-tools",
  "reqwest",
  "rustls",
  "serde",
@@ -694,13 +694,13 @@ dependencies = [
 ]
 
 [[package]]
-name = "mycelium-model"
+name = "mycelium-agent-model"
 version = "0.7.0"
 dependencies = [
  "async-trait",
  "futures-core",
  "futures-util",
- "mycelium-core",
+ "mycelium-agent-core",
  "proptest",
  "serde",
  "serde_json",
@@ -709,14 +709,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "mycelium-provider-openai"
+name = "mycelium-agent-provider-openai"
 version = "0.7.0"
 dependencies = [
  "futures-util",
- "mycelium-core",
- "mycelium-model",
- "mycelium-runtime",
- "mycelium-tools",
+ "mycelium-agent-core",
+ "mycelium-agent-model",
+ "mycelium-agent-runtime",
+ "mycelium-agent-tools",
  "reqwest",
  "rustls",
  "serde",
@@ -727,15 +727,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "mycelium-runtime"
+name = "mycelium-agent-runtime"
 version = "0.7.0"
 dependencies = [
  "async-trait",
  "futures-core",
  "futures-util",
- "mycelium-core",
- "mycelium-model",
- "mycelium-tools",
+ "mycelium-agent-core",
+ "mycelium-agent-model",
+ "mycelium-agent-tools",
  "serde",
  "serde_json",
  "tempfile",
@@ -747,12 +747,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "mycelium-tools"
+name = "mycelium-agent-tools"
 version = "0.7.0"
 dependencies = [
  "async-trait",
- "mycelium-core",
- "mycelium-macros",
+ "mycelium-agent-core",
+ "mycelium-agent-macros",
  "serde",
  "serde_json",
  "thiserror",
