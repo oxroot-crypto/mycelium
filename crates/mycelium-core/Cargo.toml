@@ -1,12 +1,17 @@
 [package]
-name = "mycelium-core"
+name = "mycelium-agent-core"
 description = "mycelium 领域内核：消息、工具协议、事件、运行状态机、错误体系与配置"
+keywords = ["agent", "llm", "sdk", "protocol"]
+categories = ["development-tools", "asynchronous"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish.workspace = true
+
+# 发布名与导入名解耦：crates.io 包名为 mycelium-agent-core，`use` 导入名保持 mycelium_core。
+[lib]
+name = "mycelium_core"
 
 [lints]
 workspace = true

@@ -1,19 +1,24 @@
 [package]
-name = "mycelium-mcp"
+name = "mycelium-agent-mcp"
 description = "mycelium 的 MCP（Model Context Protocol）客户端适配：stdio JSON-RPC、tools/list 与 tools/call"
+keywords = ["mcp", "agent", "llm", "json-rpc"]
+categories = ["development-tools", "network-programming"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish.workspace = true
+
+# 发布名与导入名解耦：crates.io 包名为 mycelium-agent-mcp，`use` 导入名保持 mycelium_mcp。
+[lib]
+name = "mycelium_mcp"
 
 [lints]
 workspace = true
 
 [dependencies]
-mycelium-core.workspace = true
-mycelium-tools.workspace = true
+mycelium-agent-core.workspace = true
+mycelium-agent-tools.workspace = true
 async-trait.workspace = true
 futures-util.workspace = true
 reqwest.workspace = true

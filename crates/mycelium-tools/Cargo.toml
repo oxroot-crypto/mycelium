@@ -1,19 +1,24 @@
 [package]
-name = "mycelium-tools"
+name = "mycelium-agent-tools"
 description = "mycelium 工具抽象（SPI）与注册表：Tool trait、执行上下文、ToolOutput 与 ToolRegistry"
+keywords = ["agent", "tools", "json-schema", "macro"]
+categories = ["development-tools", "asynchronous"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish.workspace = true
+
+# 发布名与导入名解耦：crates.io 包名为 mycelium-agent-tools，`use` 导入名保持 mycelium_tools。
+[lib]
+name = "mycelium_tools"
 
 [lints]
 workspace = true
 
 [dependencies]
-mycelium-core.workspace = true
-mycelium-macros.workspace = true
+mycelium-agent-core.workspace = true
+mycelium-agent-macros.workspace = true
 async-trait.workspace = true
 serde.workspace = true
 serde_json.workspace = true

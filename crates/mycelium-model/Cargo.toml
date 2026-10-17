@@ -1,18 +1,23 @@
 [package]
-name = "mycelium-model"
+name = "mycelium-agent-model"
 description = "mycelium 模型提供方抽象（SPI）：ModelProvider trait、请求、流式增量与能力声明"
+keywords = ["agent", "llm", "provider", "streaming"]
+categories = ["development-tools", "asynchronous"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish.workspace = true
+
+# 发布名与导入名解耦：crates.io 包名为 mycelium-agent-model，`use` 导入名保持 mycelium_model。
+[lib]
+name = "mycelium_model"
 
 [lints]
 workspace = true
 
 [dependencies]
-mycelium-core.workspace = true
+mycelium-agent-core.workspace = true
 async-trait.workspace = true
 futures-core.workspace = true
 futures-util.workspace = true

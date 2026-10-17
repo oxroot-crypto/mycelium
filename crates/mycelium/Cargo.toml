@@ -1,27 +1,36 @@
 [package]
-name = "mycelium"
+name = "mycelium-agent"
 description = "mycelium agent SDK 门面：统一 re-export、prelude 与端到端示例"
+keywords = ["agent", "llm", "sdk", "async", "mcp"]
+categories = ["development-tools", "asynchronous"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish.workspace = true
+
+# 发布名与导入名解耦：crates.io 包名为 mycelium-agent，`use` 导入名保持 mycelium。
+[lib]
+name = "mycelium"
 
 [lints]
 workspace = true
 
 [dependencies]
-mycelium-core.workspace = true
-mycelium-mcp.workspace = true
-mycelium-model.workspace = true
-mycelium-provider-openai = { workspace = true, optional = true }
-mycelium-runtime.workspace = true
-mycelium-tools.workspace = true
+mycelium-agent-core.workspace = true
+mycelium-agent-mcp.workspace = true
+mycelium-agent-model.workspace = true
+mycelium-agent-provider-openai = { workspace = true, optional = true }
+mycelium-agent-runtime.workspace = true
+mycelium-agent-tools.workspace = true
+
+[package.metadata.docs.rs]
+# docs.rs 全 feature 构建：门面唯一 feature 为 provider-openai。
+all-features = true
 
 [features]
 default = []
-provider-openai = ["dep:mycelium-provider-openai"]
+provider-openai = ["dep:mycelium-agent-provider-openai"]
 
 [[example]]
 name = "agent_deepseek_mcp"

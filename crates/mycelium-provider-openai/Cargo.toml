@@ -1,19 +1,24 @@
 [package]
-name = "mycelium-provider-openai"
+name = "mycelium-agent-provider-openai"
 description = "mycelium 的 OpenAI 兼容 Provider 实现（Chat Completions，流式 SSE）"
+keywords = ["openai", "llm", "agent", "provider"]
+categories = ["api-bindings", "development-tools"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish.workspace = true
+
+# 发布名与导入名解耦：crates.io 包名为 mycelium-agent-provider-openai，`use` 导入名保持 mycelium_provider_openai。
+[lib]
+name = "mycelium_provider_openai"
 
 [lints]
 workspace = true
 
 [dependencies]
-mycelium-core.workspace = true
-mycelium-model.workspace = true
+mycelium-agent-core.workspace = true
+mycelium-agent-model.workspace = true
 futures-util.workspace = true
 reqwest.workspace = true
 rustls.workspace = true
@@ -23,6 +28,6 @@ thiserror.workspace = true
 tracing.workspace = true
 
 [dev-dependencies]
-mycelium-runtime.workspace = true
-mycelium-tools.workspace = true
+mycelium-agent-runtime.workspace = true
+mycelium-agent-tools.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net", "io-util", "time"] }

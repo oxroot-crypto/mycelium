@@ -1,20 +1,25 @@
 [package]
-name = "mycelium-runtime"
+name = "mycelium-agent-runtime"
 description = "mycelium 执行引擎：AgentRuntime 装配、会话与运行钩子（执行循环自 v0.2 起实现）"
+keywords = ["agent", "runtime", "async", "sessions"]
+categories = ["development-tools", "asynchronous"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish.workspace = true
+
+# 发布名与导入名解耦：crates.io 包名为 mycelium-agent-runtime，`use` 导入名保持 mycelium_runtime。
+[lib]
+name = "mycelium_runtime"
 
 [lints]
 workspace = true
 
 [dependencies]
-mycelium-core.workspace = true
-mycelium-model.workspace = true
-mycelium-tools.workspace = true
+mycelium-agent-core.workspace = true
+mycelium-agent-model.workspace = true
+mycelium-agent-tools.workspace = true
 async-trait.workspace = true
 futures-core.workspace = true
 futures-util.workspace = true

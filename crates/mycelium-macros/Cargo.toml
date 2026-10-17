@@ -1,14 +1,17 @@
 [package]
-name = "mycelium-macros"
+name = "mycelium-agent-macros"
 description = 'mycelium 过程宏：#[tool] 由普通函数生成 Tool 实现与 JSON Schema'
+keywords = ["agent", "proc-macro", "derive", "tools"]
+categories = ["development-tools", "development-tools::procedural-macro-helpers"]
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish.workspace = true
 
+# 发布名与导入名解耦：crates.io 包名为 mycelium-agent-macros，`use` 导入名保持 mycelium_macros。
 [lib]
+name = "mycelium_macros"
 proc-macro = true
 
 [lints]

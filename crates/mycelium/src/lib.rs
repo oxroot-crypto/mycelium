@@ -2,7 +2,7 @@
 //!
 //! 本 crate 不承载业务逻辑；文档主体直接引用仓库根目录的 `README.md`
 //! （其中的 Rust 代码块会作为 doctest 随 `cargo test` 一起验证）。
-#![doc = include_str!("../../../README.md")]
+#![doc = include_str!("../README.md")]
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub use mycelium_core as core;
