@@ -5,8 +5,8 @@
 
 ## 0. 前置条件
 
-- [ ] crates.io API Token（`CARGO_REGISTRY_TOKEN`；scope 至少含 `publish-new` 与 `publish-update`）
-- [ ] 本机已登录 crates.io（`cargo login`）或导出上述 Token
+- [x] crates.io API Token（`CARGO_REGISTRY_TOKEN`；scope 至少含 `publish-new` 与 `publish-update`）
+- [x] 本机已登录 crates.io（`cargo login`）或导出上述 Token
 - [ ] （建议）GitHub Actions 计费解锁：账号计费锁定期间 CI 全部 job 无法启动
       （证据：`docs/integration/2026-10-16-readme-e2e/ci-startup-failure.txt`）；解锁后 CI 徽章才会转为真实状态
 
@@ -72,10 +72,10 @@ mycelium-agent-core
 
 ## 5. 发布后
 
-- [ ] GitHub Release：tag 注解 + CHANGELOG v1.0.0 摘要
-- [ ] docs.rs 构建验证（`https://docs.rs/mycelium-agent/1.0.0`；门面按 `all-features` 构建）
-- [ ] 冒烟验证：新建临时工程 `cargo add mycelium-agent`，运行 README 最小示例
-- [ ] roadmap 快照表核对：tag 指向的提交与快照行一致（不一致则按惯例补记）
+- [x] GitHub Release（2026-10-17：https://github.com/oxroot-crypto/mycelium/releases/tag/v1.0.0）
+- [x] docs.rs 构建验证（badge: passing；`https://docs.rs/mycelium-agent/1.0.0`）
+- [x] 冒烟验证：独立 consumer 以 crates.io 依赖（`mycelium-agent = "1.0"`）运行 README 示例原文通过
+- [x] roadmap 快照表核对：tag `v1.0.0` 指向 `571e451`，与快照行一致
 - [ ] 若 CI 计费已解锁：确认 `ci.yml` 全 job 绿（含 semver 门禁对 `v1.0.0` 基线生效）
 
 ## 6. 回滚
