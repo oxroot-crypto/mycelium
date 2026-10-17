@@ -60,13 +60,13 @@ git push origin v1.0.0
 
 ```text
 mycelium-agent-core
-  ├── mycelium-agent-model     ─┐
-  ├── mycelium-agent-tools     ─┤（互相独立；先后皆可）
-  ├── mycelium-agent-macros    ─┘
-  ├── mycelium-agent-mcp
-  └── mycelium-agent-provider-openai
-        └── mycelium-agent-runtime
-              └── mycelium-agent
+  ├── mycelium-agent-macros（被 tools 依赖，先于 tools 发布）
+  ├── mycelium-agent-model
+  ├── mycelium-agent-tools（依赖 core / macros）
+  ├── mycelium-agent-mcp（依赖 core / tools）
+  └── mycelium-agent-provider-openai（依赖 core / model）
+        └── mycelium-agent-runtime（依赖 core / model / tools）
+              └── mycelium-agent（门面）
 ```
 
 - 每步：`cargo publish -p <包名>`，等待索引可见后再发布其依赖者
