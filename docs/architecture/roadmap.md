@@ -2,7 +2,7 @@
 
 > 原则：每一档必须保持 `cargo build / test / clippy / fmt` 全绿，且 FC-Matrix 与测试同步演进。
 
-## 进度快照（截至 v0.6.0）
+## 进度快照（截至 v1.0 发布准备）
 
 | 版本 | 发布日 | 提交（git tag） | 主题 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -13,14 +13,15 @@
 | v0.5.0 | 2026-10-16 | `3fcd1c2`（`v0.5.0`） | 多轮会话持久化（`SessionStore` + `run_session`）、子 Agent 编排（`AgentTool`） | ✅ 已发布 |
 | v0.6.0 | 2026-10-16 | `9fbe52a`（`v0.6.0`） | 长期记忆 SPI、JSON Schema 扩充、tracing 结构化 span | ✅ 已发布 |
 | v0.7.0 | 2026-10-16 | `29318cc`（`v0.7.0`） | MCP 资源 / 提示模板 / streamable HTTP 传输 | ✅ 已发布 |
-| v0.7.x | — | — | MCP 采样回调 / 通知订阅、剩余 Schema 关键字、外部记忆后端 | ⏳ 规划中 |
-| v1.0.0 | — | — | API 冻结、文档与发布流程 | ⏳ 规划中 |
+| v0.7.x | — | — | MCP 采样回调 / 通知订阅、剩余 Schema 关键字、外部记忆后端（转入 v1.x） | ⏳ 规划中 |
+| v1.0.0 | 待发布 | —（准备批次） | API 冻结：发布名迁移、semver 门禁、迁移指南、发布工程 | ⏳ 发布准备完成 |
 
 工程数据（截至 v0.7.0）：
 
 - FC 约束 **155 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10 / v0.6 7 / v0.7 7）；
-- **229 项测试**（220 单元 / 集成 + 9 doctest）全绿；clippy / fmt / doc 零告警；
-- 真实联调原始日志：`docs/integration/`（v0.3 ~ v0.7 五次完整记录，DeepSeek V4.1-Flash × MCP）；
+- **231 项测试**（220 单元 / 集成 + 11 doctest）全绿；clippy / fmt / doc / deny 零告警；
+- API 兼容门禁：`cargo-semver-checks`（对 v0.7.0 全量验证无破坏性差异；CI 基线 tag `v1.0.0`）；
+- 真实联调原始日志：`docs/integration/`（v0.3 ~ v1.0 六次完整记录 + README E2E，DeepSeek V4.1-Flash × MCP）；
 - 契约与变更记录：`docs/spec/core.md`（RFC：`docs/architecture/rfc/`）。
 
 ---
@@ -107,26 +108,31 @@
 
 ### v0.7.x — 规划中（建议优先级从高到低）
 
+> v1.0 冻结前不引入 API 变更；以下条目转入 v1.x（均为新增 API，属非破坏性 minor）。
+
 - [ ] MCP 采样回调（server → client 请求）与服务端通知订阅（progress / list_changed）
 - [ ] JSON Schema 剩余关键字（`pattern` / `multipleOf` / `format` 等）
 - [ ] 外部记忆后端（向量检索 / 数据库，生态实现；SPI 已就绪）
 
-## v1.0 API 稳定 — 准备中（2026-10-16 完成第一批）
+## v1.0 API 稳定 — 发布准备完成（2026-10-17）
 
-- [x] license 决策与许可证文件：**MIT OR Apache-2.0**（`LICENSE-MIT` / `LICENSE-APACHE` / `Cargo.toml`）
+- [x] license 决策与许可证文件：**MIT OR Apache-2.0**（已复制到全部 8 个 crate 目录，随包发布）
 - [x] 依赖审计接入 CI：`cargo-deny` + `deny.toml`（安全公告 / 许可 / 来源 / 重复版本）
 - [x] 变异测试接入：`cargo-mutants` + `mutants.toml`（每周定时工作流 `.github/workflows/mutants.yml`）
-- [x] 公共 API 冻结评审文档：`docs/architecture/api-freeze.md`（冻结面 / 不冻结面 / 变更政策 / 检查单）
-- [x] 发布流程与检查单：`docs/architecture/release-process.md`；版本变更记录 `CHANGELOG.md`
-- [ ] API 冻结正式生效（连续两个小版本无破坏性变更后评审）
-- [ ] `cargo-public-api` / `cargo-semver-checks` 作为 CI 门禁
-- [ ] crates.io 首发（凭据与元数据就绪后，按发布顺序）
-- [ ] 迁移指南（v0.1 → v1.0）、示例集、性能基准（criterion）
+- [x] 公共 API 冻结正式生效：`docs/architecture/api-freeze.md` 状态「已冻结」（基线 v1.0.0；7 个冻结 crate
+      经 `cargo-semver-checks` 对 v0.7.0 全量验证无破坏性差异）
+- [x] `cargo-semver-checks` CI 门禁（基线 tag `v1.0.0`）+ 打包预检（`cargo package --workspace --no-verify`）
+- [x] crates.io 发布名迁移：`mycelium-agent` / `mycelium-agent-core` / … （导入名保持不变）；
+      发布元数据（keywords / categories / readme / docs.rs all-features）就绪
+- [x] 迁移指南（v0.1 → v1.0）与 v1.0 发布执行手册（`docs/architecture/release-v1.0-runbook.md`）
+- [x] 发布准备批次全量验证 + 六场景真实联调（日志 `docs/integration/2026-10-17-v1.0/`）
+- [ ] crates.io 首发（凭据与 CI 计费解锁后，由 release 分支按手册执行）
+- [ ] 性能基准（criterion）与示例集扩充（转入 v1.x）
 
 ## 工程化 backlog
 
 - [x] MSRV CI job（1.97.0）—— 已并入 v0.4.0
 - [x] `cargo-mutants` 接入 CI —— 每周定时工作流（`.github/workflows/mutants.yml`，配置 `mutants.toml`）
 - [x] `cargo-deny` 依赖审计 —— CI 门禁（`deny.toml`）
-- [ ] `cargo-public-api` / `cargo-semver-checks` 作为 API 变更门禁
+- [x] `cargo-semver-checks` API 变更门禁 —— CI semver job（基线 tag `v1.0.0`；`cargo-public-api` 未采用：0.52.0 于当前工具链编译失败）
 - [ ] 文档站点（mdBook / docs.rs 徽章）

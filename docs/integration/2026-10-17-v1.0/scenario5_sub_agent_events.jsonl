@@ -1,0 +1,20 @@
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":0,"at_ms":1792201556861,"type":"run_started","message_count":1}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":1,"at_ms":1792201556861,"type":"step_started","step":1}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":2,"at_ms":1792201556861,"type":"model_request_started","model":"deepseek-flash","message_count":1,"tool_count":1}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":3,"at_ms":1792201557549,"type":"model_request_finished","stop_reason":"tool_use","usage":{"input_tokens":336,"output_tokens":48,"reasoning_tokens":0}}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":4,"at_ms":1792201557549,"type":"model_tool_call","call":{"id":"call_00_ET_FmsKgTYTlgqO2RDpyKsm5889","name":"ask_child","arguments":{"prompt":"1+1 等于几？只回复数字"}}}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":5,"at_ms":1792201557549,"type":"tool_call_started","call_id":"call_00_ET_FmsKgTYTlgqO2RDpyKsm5889","name":"ask_child"}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":6,"at_ms":1792201558264,"type":"tool_call_finished","call_id":"call_00_ET_FmsKgTYTlgqO2RDpyKsm5889","name":"ask_child","is_error":false}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":7,"at_ms":1792201558265,"type":"step_started","step":2}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":8,"at_ms":1792201558265,"type":"model_request_started","model":"deepseek-flash","message_count":3,"tool_count":1}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":9,"at_ms":1792201559325,"type":"model_text_delta","text":"子"}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":10,"at_ms":1792201559337,"type":"model_text_delta","text":" Agent"}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":11,"at_ms":1792201559337,"type":"model_text_delta","text":" "}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":12,"at_ms":1792201559337,"type":"model_text_delta","text":"的回答"}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":13,"at_ms":1792201559337,"type":"model_text_delta","text":"是"}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":14,"at_ms":1792201559337,"type":"model_text_delta","text":"："}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":15,"at_ms":1792201559371,"type":"model_text_delta","text":"**"}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":16,"at_ms":1792201559371,"type":"model_text_delta","text":"2"}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":17,"at_ms":1792201559371,"type":"model_text_delta","text":"**"}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":18,"at_ms":1792201559371,"type":"model_request_finished","stop_reason":"end_turn","usage":{"input_tokens":397,"output_tokens":10,"reasoning_tokens":0}}
+{"run_id":"01a14789-837c-72ae-a556-2e92412ce693","seq":19,"at_ms":1792201559371,"type":"run_completed","usage":{"input_tokens":733,"output_tokens":58,"reasoning_tokens":0},"steps":2}

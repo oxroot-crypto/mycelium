@@ -1,0 +1,50 @@
+{
+  "id": "01a14789-7e2a-74c8-ab31-2f983a7f7d79",
+  "created_at_ms": 1792201555498,
+  "messages": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "请记住一个数字：7。回答「记住了」即可。"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "text": "我们需要回答用户中文。用户要求记住数字7，回答「记住了」即可。只需回复记住了。不能多说。"
+        },
+        {
+          "type": "text",
+          "text": "记住了"
+        }
+      ]
+    },
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "text",
+          "text": "我刚才让你记住的数字是多少？只回答数字。"
+        }
+      ]
+    },
+    {
+      "role": "assistant",
+      "content": [
+        {
+          "type": "thinking",
+          "text": "我们需要回答用户中文问题。用户问刚才让记住的数字是多少，只回答数字。应该是7。直接输出7。注意只回答数字。"
+        },
+        {
+          "type": "text",
+          "text": "7"
+        }
+      ]
+    }
+  ]
+}

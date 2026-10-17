@@ -1,0 +1,23 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "我们需要回答用户中文问题。用户问刚才让记住的数字是多少，只回答数字。应该是7。直接输出7。注意只回答数字。",
+          "type": "thinking"
+        },
+        {
+          "text": "7",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 1,
+  "usage": {
+    "input_tokens": 68,
+    "output_tokens": 32,
+    "reasoning_tokens": 30
+  }
+}

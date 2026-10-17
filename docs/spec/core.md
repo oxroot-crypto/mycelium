@@ -395,10 +395,40 @@ flowchart LR
 | v0.6.0 | 2026-10-16 | JSON Schema 子集扩充（§2.27）：`const` / `allOf` / `anyOf` / `oneOf` / 数值边界 / 字符串长度 / 数组约束 | 新增（校验更严格，属行为增强） |
 | v0.6.0 | 2026-10-16 | tracing 结构化 span（§2.28）：`mycelium.run` / `mycelium.step` / `mycelium.tool` | 新增 |
 | v0.7.0 | 2026-10-16 | MCP 完整化（§2.29）：`resources/list` / `resources/read` / `prompts/list` / `prompts/get` 与 HTTP（streamable HTTP）传输 | 新增（非破坏性） |
+| v1.0.0（发布准备） | 2026-10-17 | crates.io 发布名迁移（`mycelium-agent-*`；导入名不变）与发布工程（元数据 / 许可证 / crate README / 打包预检） | 非破坏性（导入名不变；未发布无存量影响） |
+| v1.0.0（发布准备） | 2026-10-17 | 公共 API 冻结正式生效：基线 = v0.7.0 API（semver-checks 全量无破坏差异）+ 发布名迁移；CI 增加 semver 门禁 | 冻结 |
 
 ## 6. 验证报告（FC-Verification Report）
 
-### 6.1 v0.7（当前）
+### 6.1 v1.0（发布准备，2026-10-17）
+
+- 验证日期：2026-10-17
+- 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
+- 执行命令与结果：
+  - `cargo test --workspace --all-features`：**220 个单元 / 集成测试 + 11 个 doctest** 全部通过
+    （20 个测试套件；1 个 doctest 为 `ignore`）；
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`：零告警；
+  - `cargo fmt --all --check`：通过；
+  - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features`：通过；
+  - `cargo deny check`：`advisories / bans / licenses / sources` 全部通过；
+  - MSRV：1.93 工具链被 `rust-version = "1.97"` 显式拒绝（`mycelium-agent-core@0.7.0 requires rustc 1.97`）。
+- **公共 API 兼容性（冻结评审）**：`cargo-semver-checks 0.51.0`，7 个冻结 crate 对 `v0.7.0` 基线
+  全量验证，全部 `no semver update required`（无破坏性差异）。
+- **打包验证**：
+  - `cargo package --workspace --no-verify`：8 个 `.crate` 产物，全部含 README / LICENSE-MIT / LICENSE-APACHE；
+  - `cargo package -p mycelium-agent-core` 与 `-p mycelium-agent-macros`（无内部依赖）：
+    完整 verification 构建通过；依赖方首次发布 bootstrap 行为已实测并记录于 release-process.md §4。
+- **真实模型联调**（六场景全通过，29.5s；原始日志 `docs/integration/2026-10-17-v1.0/`）：
+  ① 文本 + 思考链（reasoning_tokens=181）② `#[tool]` 往返（42）③ MCP 文件系统（`secure-filesystem-server`，14 工具）
+  ④ 多轮会话持久化 / 恢复 ⑤ 子 Agent 编排 ⑥ MCP 资源 7 个 / 提示模板 4 个（`server-everything`）。
+- **安装验证**（新发布名 git 依赖）：两个独立 consumer 工程——README 用法示例原文（71 行）
+  与 `features = ["provider-openai"]` 写法——编译运行通过。
+- 追溯覆盖率：§2 与 §3 共 **155 条**约束，100% 映射且全部 `Passed`（本批次无契约行为变更）。
+- 发布阻断记录（外部）：CI 计费锁定（账号级），证据见
+  `docs/integration/2026-10-16-readme-e2e/ci-startup-failure.txt`；本地全套验证通过，
+  解锁后 CI（fmt/clippy/test、MSRV、打包预检、semver 门禁）即可真实生效。
+
+### 6.2 v0.7（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -422,7 +452,7 @@ flowchart LR
 | F27 | SSE 不按 id 匹配（取首条） | `http::tests::sse_response_is_matched_by_id` | 变红 ✓（已还原） |
 | F28 | 提示参数 `required` 缺省改为 `true` | `client::tests::list_prompts_maps_specs` | 变红 ✓（已还原） |
 
-### 6.2 v0.6（历史）
+### 6.3 v0.6（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -445,7 +475,7 @@ flowchart LR
 | F23 | `oneOf` 允许多分支同时命中 | `schema::tests::one_of_requires_exactly_one_branch` | 变红 ✓（已还原） |
 | F24 | 工具 span 移除 `instrument` | `engine::tests::run_emits_structured_spans` | 变红 ✓（已还原） |
 
-### 6.3 v0.5（历史）
+### 6.4 v0.5（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -472,7 +502,7 @@ flowchart LR
 | F19 | 取消不传播到子运行 | `engine::tests::agent_tool_propagates_cancel_to_child` | 变红 ✓（已还原） |
 | F20 | `AgentTool` 缺 `prompt` 不再校验 | `agent_tool::tests::missing_prompt_is_rejected` | 变红 ✓（已还原） |
 
-### 6.4 v0.4（历史）
+### 6.5 v0.4（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -499,7 +529,7 @@ flowchart LR
 | F15 | 结构化工具结果降级为纯文本 | `engine::tests::structured_tool_result_is_fed_back_intact` | 变红 ✓（已还原） |
 | F16 | 降级判据反转（可重试不降级） | `fallback::tests::falls_back_on_retryable_error` | 变红 ✓（已还原） |
 
-### 6.5 v0.3（历史）
+### 6.6 v0.3（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -533,7 +563,7 @@ flowchart LR
 > F9 首轮未变红暴露了原测试的弱点：它只校验 `call_id` 顺序，而 `call_id` 本身由调用顺序 zip 生成，
 > 内容错位无法被发现。已按 FSVDD 要求强化测试（校验 `call_id` 与 `content` 的对应关系）并复验通过。
 
-### 6.6 v0.2（历史）
+### 6.7 v0.2（历史）
 
 - 验证日期：2026-10-14
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -554,7 +584,7 @@ flowchart LR
 | F7 | 工具错误改为直接终止（不回灌） | `engine::tests::failing_tool_error_is_fed_back` | 变红 ✓（已还原） |
 | F8 | 429 限流映射改为普通 Api 错误 | `provider::tests::maps_error_status_rules` | 变红 ✓（已还原） |
 
-### 6.7 v0.1（历史）
+### 6.8 v0.1（历史）
 
 - 验证日期：2026-10-14；结果：55 个单元 / 属性测试 + 4 个 doctest 全部通过；clippy / fmt / doc 零告警。
 - 证伪抽查 F1 ~ F4（工具名长度上限、重名注册覆盖、转移边删除、饱和加法改回绕）全部按预期变红后还原。
