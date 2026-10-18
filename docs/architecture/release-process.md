@@ -38,6 +38,7 @@
    HASH=$(git rev-parse --short HEAD)   # 记录到 roadmap 快照表
    git tag -a vX.Y.Z -m "<主题>：<要点>（N 条约束）"
    git push && git push origin vX.Y.Z
+   git branch release/vX.Y.Z && git push origin release/vX.Y.Z   # 发布分支（发布快照）
    ```
 7. **发布到 crates.io**（§4）：`cargo publish -p <crate>`（逐 crate，等待索引刷新）
 8. **发布后**：GitHub Release（tag 注解 + CHANGELOG 摘要）；验证 docs.rs 构建；

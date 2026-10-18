@@ -145,6 +145,7 @@
 - [x] 发布后：docs.rs 构建通过（`mycelium-agent` / `mycelium-agent-model` 文档页可访问）；
   crates.io 消费者冒烟（门面 feature + `EmbeddingProvider` 动态调用）通过；CI semver 基线更新为 `v1.1.0`
 - [x] GitHub Release：<https://github.com/oxroot-crypto/mycelium/releases/tag/v1.1.0>（tag 注解 + CHANGELOG 1.1.0 摘要）
+- [x] release 分支：`release/v1.1.0` 已推送（发布快照，与 tag `v1.1.0` 对应；该步骤已固化到 `release-process.md` §2 第 6 步）
 - [ ] rerank 支持：暂缓（OpenRouter 账号级 ZDR 策略拦截全部 rerank 端点；待可用提供方后重新评估）
 
 ## 工程化 backlog
