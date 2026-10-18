@@ -429,6 +429,9 @@ flowchart LR
   - `cargo fmt --all --check`：通过；
   - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features`：通过；
   - `cargo deny check`：`advisories / bans / licenses / sources` 全部通过。
+- **CI（发布提交 `4d93ba6`）**：5 个 job 全部成功——`fmt / clippy / test`、MSRV（1.97.0）、
+  `cargo-deny`、打包预检（`cargo package --workspace --no-verify`）、API 兼容性
+  （`cargo-semver-checks`，基线 tag `v1.0.0`）；账号级计费锁定解除后门禁真实生效。
 - **公共 API 兼容性**：`cargo-semver-checks 0.51.0`，7 个冻结 crate 对 `v1.0.0` 基线全量验证，
   全部 `no semver update required`（Embedding 属非破坏性新增，无枚举变体与 wire 变更）。
 - **真实联调**（七场景全通过；原始日志 `docs/integration/2026-10-18-v1.1/`）：
