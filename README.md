@@ -14,9 +14,9 @@
 
 [English](README.en.md) | 简体中文
 
-> **状态：v1.0.0（公共 API 已冻结）**。执行循环、并发工具、权限策略、重试与降级、MCP（工具 / 资源 / 提示模板，
-> stdio 与 HTTP）、思考过程、多轮会话、子 Agent 编排与结构化事件流均已可用，并经 DeepSeek
-> V4.1-Flash 真实联调验证；
+> **状态：v1.1.0（公共 API 已冻结）**。执行循环、并发工具、权限策略、重试与降级、MCP（工具 / 资源 / 提示模板，
+> stdio 与 HTTP）、思考过程、多轮会话、子 Agent 编排、结构化事件流与文本向量化（Embedding）均已可用，
+> 并经 DeepSeek V4.1-Flash（聊天）与 OpenRouter（Embedding）真实联调验证；
 > 版本历史见 [CHANGELOG.md](CHANGELOG.md)，后续计划见[路线图](docs/architecture/roadmap.md)。
 
 面向 Rust 的 agent SDK：**分层通用核心**。内核不假设产品形态，同一套抽象既可嵌入应用（框架形态），
@@ -41,7 +41,8 @@
 - **执行引擎** — 模型 → 工具 → 回灌循环，含步数 / Token / 时长预算、取消与超时
 - **流式装配** — 文本、思考链与工具调用分片实时装配（`DeltaAssembler`）
 - **MCP 客户端** — stdio 与 streamable HTTP，覆盖工具 / 资源 / 提示模板
-- **六个 SPI 扩展点** — `ModelProvider`、`Tool`、`ToolPolicy`、`SessionStore`、`Memory`、`RunHooks`
+- **七个 SPI 扩展点** — `ModelProvider`、`Tool`、`ToolPolicy`、`SessionStore`、`Memory`、`RunHooks`、`EmbeddingProvider`
+- **文本向量化** — Embedding SPI 与 OpenAI 兼容 `/embeddings`（批量、`dimensions` 降维、请求与响应双重校验）
 - **工具生态** — JSON Schema 入参校验、结构化工具结果、并发保序回灌、`#[tool]` 派生宏
 - **多轮与多 Agent** — 会话持久化 / 恢复；`AgentTool` 子 Agent 编排
 - **可观测** — 结构化事件流（`seq` 连续）、tracing span、原始交互日志留存
@@ -51,7 +52,7 @@
 ```text
 mycelium-agent (facade: re-exports + prelude)
    ├── mycelium-agent-runtime (execution loop / events / sessions / hooks)
-   │      ├── mycelium-agent-model (ModelProvider SPI / streaming assembler)
+   │      ├── mycelium-agent-model (ModelProvider / EmbeddingProvider SPI / streaming assembler)
    │      └── mycelium-agent-tools (Tool SPI / registry / validation / policy)
    ├── mycelium-agent-provider-openai (OpenAI-compatible provider, DeepSeek ready)
    ├── mycelium-agent-mcp (MCP client: stdio + HTTP, tools / resources / prompts)
@@ -65,12 +66,12 @@ mycelium-agent (facade: re-exports + prelude)
 | crate（crates.io 包名） | 职责 |
 | :--- | :--- |
 | `mycelium-agent-core` | 领域内核：标识、消息（含思考块）、工具协议、事件、运行状态机、错误分类矩阵、配置 |
-| `mycelium-agent-model` | 模型提供方抽象（SPI）：`ModelProvider` / `ModelRequest` / `ModelDelta` / 流式装配器 |
+| `mycelium-agent-model` | 模型提供方抽象（SPI）：`ModelProvider` / `EmbeddingProvider` / `ModelRequest` / `ModelDelta` / 流式装配器 |
 | `mycelium-agent-tools` | 工具抽象（SPI）、注册表、入参校验（JSON Schema 子集）、权限策略、`#[tool]` 宏 |
 | `mycelium-agent-runtime` | 执行引擎：`AgentRuntime` / 并发工具 / 预算 / 取消 / `AgentRun` / `Session` / `RunHooks` |
 | `mycelium-agent-macros` | 过程宏：`#[tool]` 由函数生成工具实现与 JSON Schema |
 | `mycelium-agent-mcp` | MCP 客户端：stdio 与 streamable HTTP；工具 / 资源 / 提示模板 |
-| `mycelium-agent-provider-openai` | OpenAI 兼容 Provider（Chat Completions、流式 SSE、思考链） |
+| `mycelium-agent-provider-openai` | OpenAI 兼容 Provider（Chat Completions、流式 SSE、思考链、`/embeddings` 向量化） |
 | `mycelium-agent` | 门面：统一 re-export 与 `prelude`（可选 feature：`provider-openai`） |
 
 延伸阅读：
@@ -98,14 +99,14 @@ mycelium-agent (facade: re-exports + prelude)
 # Cargo.toml
 [dependencies]
 # crates.io 包名 mycelium-agent；Rust 导入名固定为 mycelium（use mycelium::prelude::*;）
-mycelium-agent = "1.0"
+mycelium-agent = "1.1"
 # 可选：OpenAI 兼容 Provider；或改为启用门面 feature（见下）
-mycelium-agent-provider-openai = "1.0"
+mycelium-agent-provider-openai = "1.1"
 ```
 
 ```toml
 # 等价写法：只依赖门面，用 feature 打开 Provider
-mycelium-agent = { version = "1.0", features = ["provider-openai"] }
+mycelium-agent = { version = "1.1", features = ["provider-openai"] }
 ```
 
 跟随仓库 `main` 的最新开发版本可用 git 依赖：`mycelium-agent = { git = "https://github.com/oxroot-crypto/mycelium" }`。
@@ -295,6 +296,33 @@ fn sub_agent(child: Arc<AgentRuntime>) -> Result<Arc<dyn Tool>, Box<dyn std::err
 }
 ```
 
+### 文本向量化（Embedding）
+
+向量化 SPI（`EmbeddingProvider`）与领域类型构造即校验；`mycelium-agent-provider-openai` 的
+`OpenAiProvider` 同时实现该 SPI（调用 OpenAI 兼容 `/embeddings`，支持批量与 `dimensions` 降维）：
+
+```rust
+use mycelium::prelude::*;
+
+#[allow(dead_code)]
+async fn embed_texts(provider: &dyn EmbeddingProvider) -> Result<(), Box<dyn std::error::Error>> {
+    // 构造即校验：1..=2048 条输入、逐条非空白、维度非零。
+    let request = EmbeddingRequest::new(
+        ModelId::new("text-embedding-3-small")?,
+        vec!["mycelium".to_owned(), "agent SDK".to_owned()],
+    )?
+    .with_dimensions(256)?; // 可选：降维；不支持该参数的模型会返回提供方错误
+
+    let response: EmbeddingResponse = provider.embed(request).await?;
+    // embeddings[i].index == i（按输入顺序对齐）；model / usage 可能缺失。
+    println!("向量维度：{}", response.embeddings[0].vector.len());
+    Ok(())
+}
+```
+
+响应解析会逐条校验（条数 / `index` 排列 / 非空向量 / 维度一致 / 数值有限），任何结构违约显式返回
+`ModelError::InvalidResponse`，不会静默容忍。
+
 ## ⚙️ 配置
 
 `AgentConfig::builder()` 支持的全部选项（键名为真实方法名）：
@@ -323,6 +351,9 @@ fn sub_agent(child: Arc<AgentRuntime>) -> Result<Arc<dyn Tool>, Box<dyn std::err
 | `DEEPSEEK_MODEL` | `deepseek-flash` | 模型名 |
 | `OPENAI_API_KEY` | 必填 | `OpenAiProvider::from_env()` 使用 |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | `OpenAiProvider::from_env()` 使用 |
+| `OPENROUTER_API_KEY` | 场景 7 必填 | OpenRouter 网关（Embedding 真实联调；DeepSeek 无 embedding 端点） |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter 网关地址 |
+| `OPENROUTER_EMBEDDING_MODEL` | `openai/text-embedding-3-small` | 向量化模型（OpenRouter 模型名） |
 
 ## 🧪 开发
 
@@ -343,7 +374,7 @@ cargo deny check        # 依赖审计（安全公告 / 许可 / 来源）；安
 
 ## 🗺️ 路线图
 
-- 已发布：v0.1 → v1.0 全部里程碑（架构骨架 → API 冻结与 crates.io 首发），tag 与快照表见
+- 已发布：v0.1 → v1.1 全部里程碑（架构骨架 → API 冻结与 crates.io 首发 → 文本向量化），tag 与快照表见
   [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md)。
 - 进行中（v1.x）：MCP 采样回调与服务端通知订阅、JSON Schema 剩余关键字、外部记忆后端。
 

@@ -1,8 +1,12 @@
 //! Provider 本体与构建器。
 
 use mycelium_core::error::ModelError;
-use mycelium_model::{ModelCapabilities, ModelProvider, ModelRequest, ModelStream, async_trait};
+use mycelium_model::{
+    EmbeddingProvider, EmbeddingRequest, EmbeddingResponse, ModelCapabilities, ModelProvider,
+    ModelRequest, ModelStream, async_trait,
+};
 
+use crate::embedding::{build_embeddings_request, parse_embeddings_response};
 use crate::request::build_chat_request;
 use crate::stream::parse_sse_stream;
 
@@ -166,15 +170,59 @@ impl ModelProvider for OpenAiProvider {
     }
 }
 
+#[async_trait]
+impl EmbeddingProvider for OpenAiProvider {
+    fn id(&self) -> &str {
+        "openai"
+    }
+
+    /// 调用 OpenAI 兼容 `/embeddings` 端点（FC-POST-241 / FC-POST-242）。
+    ///
+    /// # Errors
+    /// - 非 2xx → [`ModelError::Api`]；429 → [`ModelError::RateLimited`]；
+    /// - 网络 / IO 失败 → [`ModelError::Transport`]；
+    /// - 响应结构违约 → [`ModelError::InvalidResponse`]。
+    async fn embed(&self, request: EmbeddingRequest) -> Result<EmbeddingResponse, ModelError> {
+        let input_count = request.inputs().len();
+        let body = build_embeddings_request(&request);
+        let url = format!("{}/embeddings", self.base_url);
+        // 全量原始交互日志（联调可追溯；Authorization 头不落盘）。
+        tracing::debug!(target: "mycelium::openai", %url, body = %body, "→ POST /embeddings");
+        let response = self
+            .client
+            .post(url)
+            .bearer_auth(&self.api_key)
+            .json(&body)
+            .send()
+            .await
+            .map_err(map_request_error)?;
+
+        let status = response.status();
+        tracing::debug!(target: "mycelium::openai", status = status.as_u16(), "← HTTP 响应");
+        if !status.is_success() {
+            return Err(map_error_response(status, response).await);
+        }
+        let bytes = response.bytes().await.map_err(map_request_error)?;
+        let parsed = parse_embeddings_response(&bytes, input_count)?;
+        tracing::debug!(
+            target: "mycelium::openai",
+            vectors = parsed.embeddings.len(),
+            dimensions = parsed.embeddings.first().map_or(0, |item| item.vector.len()),
+            "← POST /embeddings 完成"
+        );
+        Ok(parsed)
+    }
+}
+
 /// reqwest 错误 → `Transport`。
-fn map_request_error(error: reqwest::Error) -> ModelError {
+pub(crate) fn map_request_error(error: reqwest::Error) -> ModelError {
     ModelError::Transport {
         message: error.to_string(),
     }
 }
 
 /// 非 2xx 响应 → `Api` / `RateLimited`。
-async fn map_error_response(
+pub(crate) async fn map_error_response(
     status: reqwest::StatusCode,
     response: reqwest::Response,
 ) -> ModelError {
@@ -231,7 +279,7 @@ fn extract_error_fields(body: &str) -> (Option<String>, String) {
 mod tests {
     use mycelium_core::ids::ModelId;
     use mycelium_core::message::Message;
-    use mycelium_model::{ModelProvider, ModelRequest};
+    use mycelium_model::{EmbeddingProvider, EmbeddingRequest, ModelProvider, ModelRequest};
 
     use super::*;
 
@@ -314,6 +362,22 @@ mod tests {
             .unwrap();
         let request = ModelRequest::new(ModelId::new("m").unwrap(), vec![Message::user_text("hi")]);
         let result = provider.stream(request).await;
+        assert!(
+            matches!(result, Err(ModelError::Transport { .. })),
+            "期望 Transport 错误"
+        );
+    }
+
+    #[tokio::test]
+    async fn embeddings_connection_error_maps_to_transport() {
+        let provider = OpenAiProvider::builder()
+            .api_key("k")
+            .base_url("http://127.0.0.1:1/v1")
+            .build()
+            .unwrap();
+        let request =
+            EmbeddingRequest::new(ModelId::new("m").unwrap(), vec!["hi".to_owned()]).unwrap();
+        let result = provider.embed(request).await;
         assert!(
             matches!(result, Err(ModelError::Transport { .. })),
             "期望 Transport 错误"

@@ -1,6 +1,6 @@
 [package]
 name = "mycelium-agent-provider-openai"
-description = "mycelium 的 OpenAI 兼容 Provider 实现（Chat Completions，流式 SSE）"
+description = "mycelium 的 OpenAI 兼容 Provider 实现（Chat Completions 流式 SSE 与 Embeddings）"
 keywords = ["openai", "llm", "agent", "provider"]
 categories = ["api-bindings", "development-tools"]
 version.workspace = true

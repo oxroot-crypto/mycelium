@@ -1,0 +1,23 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "text": "我们需要回答中文一句话介绍自己并说明是什么模型。需要简洁。作为助手不能用工具。需要准确：我是 DeepSeek 助手？用户问“你是什么模型”需要说明我是DeepSeek最新版模型？系统没有给具体模型名。应说我是DeepSeek AI 助手，由深度求索开发的大语言模型。一句话包含介绍和模型。注意简洁。可能：“我是由深度求索（DeepSeek）开发的AI助手，当前使用DeepSeek大语言模型为你服务。” 一句话。可以。",
+          "type": "thinking"
+        },
+        {
+          "text": "我是由深度求索（DeepSeek）开发的AI助手，当前使用DeepSeek大语言模型为你服务。",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 1,
+  "usage": {
+    "input_tokens": 51,
+    "output_tokens": 139,
+    "reasoning_tokens": 113
+  }
+}

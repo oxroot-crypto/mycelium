@@ -25,7 +25,9 @@
    - CI：fmt/clippy/test、MSRV、打包预检；semver 门禁（基线 tag 存在时）
 2. **契约一致性**：`docs/spec/core.md` §6 验证报告更新；FC-Matrix 状态 100% `Passed`（0 x `Pending`）
 3. **真实联调**：运行 `live_integration`
-   （`cargo run -p mycelium-agent --features provider-openai --example live_integration -- <目录>`），
+   （`cargo run -p mycelium-agent --features provider-openai --example live_integration -- <目录>`；
+   `.env` 需配置 `DEEPSEEK_API_KEY`（场景 1-6）与 `OPENROUTER_API_KEY`（场景 7 文本向量化，
+   未配置时该场景显式跳过并在报告中记录），
    日志提交到 `docs/integration/<日期>-vX.Y/`，并在发布报告（core.md §6）中引用
 4. **版本号**：更新 `[workspace.package] version` 与 `[workspace.dependencies]` 内部依赖版本
    （`sed -i 's/version = "OLD"/version = "NEW"/g' Cargo.toml`），运行一次构建让 `Cargo.lock` 收敛

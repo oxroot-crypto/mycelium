@@ -16,12 +16,13 @@
 | v0.7.x | — | — | MCP 采样回调 / 通知订阅、剩余 Schema 关键字、外部记忆后端（转入 v1.x） | ⏳ 规划中 |
 | v1.0.0 | 2026-10-17 | `571e451`（`v1.0.0`） | API 冻结：发布名迁移、semver 门禁、迁移指南、发布工程 | ✅ 已发布 |
 
-工程数据（截至 v1.0.0）：
+工程数据（截至 v1.1.0）：
 
-- FC 约束 **155 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10 / v0.6 7 / v0.7 7）；
-- **231 项测试**（220 单元 / 集成 + 11 doctest）全绿；clippy / fmt / doc / deny 零告警；
-- API 兼容门禁：`cargo-semver-checks`（对 v0.7.0 全量验证无破坏性差异；CI 基线 tag `v1.0.0`）；
-- 真实联调原始日志：`docs/integration/`（v0.3 ~ v1.0 六次完整记录 + README E2E，DeepSeek V4.1-Flash × MCP）；
+- FC 约束 **163 条**，100% 映射测试（v0.1 43 / v0.2 45 / v0.3 27 / v0.4 16 / v0.5 10 / v0.6 7 / v0.7 7 / v1.1 8）；
+- **264 项测试**（248 单元 / 集成 + 16 doctest，1 个 doctest 为 `ignore`）全绿；clippy / fmt / doc / deny 零告警；
+- API 兼容门禁：`cargo-semver-checks`（对 v1.0.0 全量验证无破坏性差异；embedding 属非破坏性新增）；
+- 真实联调原始日志：`docs/integration/`（v0.3 ~ v1.1 七次完整记录 + README E2E，DeepSeek V4.1-Flash /
+  OpenRouter）；
 - 契约与变更记录：`docs/spec/core.md`（RFC：`docs/architecture/rfc/`）。
 
 ---
@@ -128,6 +129,17 @@
 - [x] 发布准备批次全量验证 + 六场景真实联调（日志 `docs/integration/2026-10-17-v1.0/`）
 - [x] crates.io 首发：`mycelium-agent-*` 8 个包按依赖拓扑顺序发布（步骤见 v1.0 发布手册）
 - [ ] 性能基准（criterion）与示例集扩充（转入 v1.x）
+
+## v1.1 文本向量化（Embedding）— 已完成（2026-10-18，`v1.1.0`）
+
+- [x] 向量化 SPI（`mycelium-model::EmbeddingProvider`）：请求 / 响应构造即校验（批量上限 2048、
+  输入非空白、维度非零；响应按条数 / `index` 排列 / 非空向量 / 维度一致 / 有限数值全量校验）
+- [x] OpenAI 兼容实现：`OpenAiProvider` 调用 `/embeddings`（批量输入、`dimensions` 降维、
+  与聊天路径一致的错误映射、结构违约显式 `ModelError::InvalidResponse`）
+- [x] 契约与追溯：FC-Matrix §2.30（7 条）+ §3 属性测试 `FC-INV-040`；门面 prelude 导出全部类型
+- [x] 真实联调场景 7（OpenRouter × `openai/text-embedding-3-small`：同义句相似度 > 无关句、
+  `dimensions=64` 降维生效；日志 `docs/integration/2026-10-18-v1.1/`）
+- [ ] rerank 支持：暂缓（OpenRouter 账号级 ZDR 策略拦截全部 rerank 端点；待可用提供方后重新评估）
 
 ## 工程化 backlog
 

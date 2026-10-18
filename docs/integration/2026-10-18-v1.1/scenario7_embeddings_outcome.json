@@ -1,0 +1,12 @@
+{
+  "count": 3,
+  "dimensions": 1536,
+  "model": "text-embedding-3-small",
+  "reduced_dimensions": 64,
+  "similarity_related": 0.9180110679252133,
+  "similarity_unrelated": 0.106753044653669,
+  "usage": {
+    "prompt_tokens": 34,
+    "total_tokens": 34
+  }
+}

@@ -27,8 +27,10 @@ pub mod prelude {
         McpResourceContent, McpServerInfo, McpTool,
     };
     pub use crate::model::{
-        DeltaAssembler, FallbackError, FallbackProvider, ModelCapabilities, ModelDelta,
-        ModelProvider, ModelRequest, ModelResponse, ModelStream, async_trait, stream_from_deltas,
+        DeltaAssembler, EmbeddingProvider, EmbeddingRequest, EmbeddingRequestError,
+        EmbeddingResponse, EmbeddingResponseError, EmbeddingUsage, EmbeddingVector, FallbackError,
+        FallbackProvider, MAX_EMBEDDING_INPUTS, ModelCapabilities, ModelDelta, ModelProvider,
+        ModelRequest, ModelResponse, ModelStream, async_trait, stream_from_deltas,
     };
     pub use crate::runtime::{
         AgentEventStream, AgentRun, AgentRuntime, AgentRuntimeBuilder, AgentTool, BuildError,

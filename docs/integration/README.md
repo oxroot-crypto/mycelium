@@ -28,16 +28,19 @@ docs/integration/
 └── 2026-10-16-readme-e2e/                   # README 端到端验证（快速开始 / consumer 安装 / 开发命令链 / CI 计费锁定证据）
 │   └── （含 live-integration/ 子目录与验证报告）
 └── 2026-10-17-v1.0/                         # v1.0 联调（发布名迁移后六场景重跑）
-    └── （同上结构 + console.log）
+│   └── （同上结构 + console.log）
+└── 2026-10-18-v1.1/                         # v1.1 联调（新增场景 7：文本向量化，OpenRouter）
+    ├── （同上结构）
+    └── scenario7_embeddings_outcome.json    # 向量条数 / 维度 / 相似度 / usage 快照
 ```
 
 ## 产物说明
 
 | 文件 | 内容 |
 | :--- | :--- |
-| `transcript.log` | tracing TRACE 全量：HTTP 请求体（含 `thinking` / `reasoning_effort` 参数）、SSE 逐行原文、MCP JSON-RPC 双向原文、运行时生命周期（`run_id` 等）、TLS/HTTP 连接细节 |
+| `transcript.log` | tracing TRACE 全量：HTTP 请求体（含 `thinking` / `reasoning_effort` / `dimensions` 参数）、SSE 逐行原文、MCP JSON-RPC 双向原文、运行时生命周期（`run_id` 等）、TLS/HTTP 连接细节 |
 | `*_events.jsonl` | `AgentEvent` 事件流逐条 JSON（`seq` 从 0 连续、终态唯一） |
-| `*_outcome.json` | 最终消息序列（含 `Thinking` 块）、`usage`（含 `reasoning_tokens`）、步数 |
+| `*_outcome.json` | 最终消息序列（含 `Thinking` 块）、`usage`（含 `reasoning_tokens`）、步数；场景 7 为向量条数 / 维度 / 相似度 / usage 快照 |
 | `report.md` | 场景、断言与结果一览 |
 
 ## 隐私与安全
@@ -48,7 +51,8 @@ docs/integration/
 ## 复现方式
 
 ```bash
-# 前置：仓库根目录 .env 配置 DEEPSEEK_API_KEY；本机可用 npx；网络可达 api.deepseek.com
+# 前置：仓库根目录 .env 配置 DEEPSEEK_API_KEY（场景 1-6）与 OPENROUTER_API_KEY（场景 7，可选）；
+#       本机可用 npx；网络可达 api.deepseek.com 与 openrouter.ai
 cargo run -p mycelium-agent --features provider-openai --example live_integration -- docs/integration/<日期>
 ```
 
@@ -60,4 +64,7 @@ cargo run -p mycelium-agent --features provider-openai --example live_integratio
    `read_text_file` 读取沙箱文件并回答内容；
 4. 多轮会话（`run_session` + `FileSessionStore` 持久化并在新 store 实例中恢复）；
 5. 子 Agent 编排（`AgentTool`：父 Agent 委托子运行并转述结果）；
-6. MCP 资源与提示模板（官方 `server-everything`：`resources/list` / `read`、`prompts/list` / `get`）。
+6. MCP 资源与提示模板（官方 `server-everything`：`resources/list` / `read`、`prompts/list` / `get`）；
+7. 文本向量化（Embedding，v1.1 起；OpenRouter × `openai/text-embedding-3-small`：批量向量、
+   `dimensions` 降维、同义句相似度高于无关句；DeepSeek 无 embedding 端点，未配置
+   `OPENROUTER_API_KEY` 时该场景显式跳过并记录）。

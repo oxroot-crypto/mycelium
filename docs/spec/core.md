@@ -3,7 +3,7 @@
 > 本文件是 mycelium 形式化契约的**单一真实来源（Single Source of Truth）**。
 > 任何行为变更必须遵循：**先改本契约 → 再改测试 → 再改实现 → 契约漂移审计**（见 §5）。
 >
-> - 版本：v1.0.0（2026-10-17）
+> - 版本：v1.1.0（2026-10-18）
 > - 覆盖范围：`mycelium-core`、`mycelium-model`、`mycelium-tools`、`mycelium-runtime`、`mycelium-macros`、`mycelium-mcp`、`mycelium-provider-openai`、`mycelium`（门面）
 > - 状态列取值：`Pending`（待验证）/ `Passed`（验证通过）/ `Planned`（未实现，不计入本次覆盖率）
 
@@ -12,8 +12,7 @@
 - 本仓库交付物为**对外契约类 SDK**（公共 API 即契约）。依据 FSVDD §1.1，将以下推荐项升级为**强制**：
   测试与约束 1:1 对齐（100% 追溯）、状态机全路径遍历、基于属性的测试（PBT）、证伪抽查。
 - 不适用豁免（FSVDD §1.2）：本仓库承载对外接口与状态流转。
-- v0.7 覆盖：MCP 资源 / 提示模板与 HTTP（streamable HTTP）传输；其余未实现部分列出 §4
-  「计划约束」，不计入本次交付覆盖率。
+- 覆盖基线：v1.1（本次新增 §2.30 文本向量化）；未实现部分列出 §4「计划约束」，不计入本次交付覆盖率。
 
 ## 1. 术语与记法
 
@@ -334,6 +333,22 @@
 | `FC-ERR-090` | 异常处理 | HTTP 非 2xx → `Transport`（含状态码）；SSE 流在匹配响应前结束 → `TransportClosed` | `http::tests::http_error_status_maps_to_transport`、`http::tests::sse_ending_before_response_is_closed` | Passed |
 | `FC-ERR-091` | 异常处理 | HTTP 传输中的 JSON-RPC error 响应 → `McpError::Rpc`（与 stdio 语义一致） | `http::tests::jsonrpc_error_over_http` | Passed |
 
+### 2.30 文本向量化（Embedding，`mycelium-model` / `mycelium-provider-openai`）
+
+向量化 SPI 与 OpenAI 兼容实现：请求**构造即校验**（`EmbeddingRequest`），响应解析后按输入数逐条校验
+（`EmbeddingResponse::new`）；任何结构违约一律归约为 `ModelError::InvalidResponse`（禁止静默容忍）。
+`EmbeddingRequest` 不携带取消令牌：调用方可自行施加 `tokio::time::timeout`，丢弃 future 即取消在途连接。
+
+| 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
+| :--- | :--- | :--- | :--- | :--- |
+| `FC-PRE-040` | 前置约束 | `EmbeddingRequest::new(model, inputs)`：`1 ≤ len(inputs) ≤ 2048` 且每项 `trim ≠ ""` 时 `Ok` 且输入逐项保真；`len = 0` → `EmptyInputs`；`len > 2048` → `TooManyInputs { len, max: 2048 }`；首个空白项下标 → `BlankInput { index }`。边界：1 / 2048 合法，2049 非法 | `embedding::tests::new_accepts_single_and_max_inputs`、`embedding::tests::new_rejects_empty_inputs`、`embedding::tests::new_rejects_too_many_inputs`、`embedding::tests::new_rejects_blank_input` | Passed |
+| `FC-PRE-041` | 前置约束 | `EmbeddingRequest::with_dimensions(d)`：`d = 0` → `ZeroDimensions`；`d ≥ 1` → `Ok` 且 `dimensions() == Some(d)`；未调用时为 `None` | `embedding::tests::with_dimensions_rejects_zero`、`embedding::tests::accessors_preserve_values` | Passed |
+| `FC-POST-240` | 后置约束 | `EmbeddingResponse::new(input_count, model, embeddings, usage)`：条数与 `input_count` 相等、`index` 恰为 `0..input_count` 的排列（无重复 / 越界）、向量非空、维度一致且数值有限时 `Ok`；结果按 `index` 升序（`embeddings[i].index == i`），`model` / `usage` 原样保留；违约为 6 类显式错误（见 `EmbeddingResponseError`） | `embedding::tests::response_accepts_and_sorts_by_index`、`embedding::tests::response_rejects_length_mismatch`、`embedding::tests::response_rejects_index_out_of_range`、`embedding::tests::response_rejects_duplicate_index`、`embedding::tests::response_rejects_empty_vector`、`embedding::tests::response_rejects_dimension_mismatch`、`embedding::tests::response_rejects_non_finite_value` | Passed |
+| `FC-POST-241` | 后置约束 | OpenAI 兼容请求体映射：`{model, input: [全部输入按序]}`；`dimensions` 仅在 `Some` 时携带；不发送多余字段 | `embedding::tests::maps_request_body` | Passed |
+| `FC-POST-242` | 后置约束 | 响应映射：`data[].index` / `data[].embedding` 精确映射；`usage.prompt_tokens` / `usage.total_tokens` 取数（字段缺省 0，整个 `usage` 缺失时 `None`）；`model` 回显（可缺失） | `embedding::tests::parses_response_with_usage_and_model`、`embedding::tests::parses_response_without_usage_and_model` | Passed |
+| `FC-ERR-100` | 异常处理 | Embedding 路径错误映射与聊天路径一致：非 2xx → `Api{status, code, message}`；429 → `RateLimited{retry_after_ms}`（含 `Retry-After`）；网络失败 → `Transport` | `e2e::e2e_embeddings_error_status_maps_to_api_error`、`provider::tests::embeddings_connection_error_maps_to_transport` | Passed |
+| `FC-ERR-101` | 异常处理 | 响应体结构违约（非法 JSON、缺 `data`、条数不符、`index` 越界或重复、空向量、维度不一致、非有限数值）→ `ModelError::InvalidResponse`（含细节），禁止静默容忍 | `embedding::tests::rejects_malformed_json`、`embedding::tests::rejects_missing_data`、`embedding::tests::rejects_out_of_range_index`、`embedding::tests::rejects_duplicate_index`、`embedding::tests::rejects_empty_vector`、`embedding::tests::rejects_inconsistent_dimensions`、`embedding::tests::rejects_non_finite_values` | Passed |
+
 ## 3. 属性测试（PBT，对应 FSVDD §4.2.1）
 
 | 编号 | 类型 | 形式化规范描述 | 对应测试用例 / 测试套件 | 验证状态 |
@@ -343,6 +358,7 @@
 | `FC-INV-012` | 不变量（属性） | 对任意 `(a, b) ∈ u64 × u64`：`Usage::new(a, b).total_tokens() == a.saturating_add(b)` | `properties::prop_usage_total_saturating` | Passed |
 | `FC-INV-013` | 不变量（属性） | 对任意文本 `t`：`Message::user_text(t)` serde 往返恒等 | `properties::prop_message_roundtrip` | Passed |
 | `FC-INV-030` | 不变量（属性） | 对任意文本增量序列 `v`：装配结果 = 单 `Text` 块且文本等于 `v` 的顺序拼接 | `assembler::tests::prop_text_deltas_concatenate` | Passed |
+| `FC-INV-040` | 不变量（属性） | 对任意输入列表 `v`：`EmbeddingRequest::new(model, v).is_ok() ⇔ (1 ≤ len(v) ≤ 2048 ∧ ∀s ∈ v: trim(s) ≠ "")`；合法时输入逐项保真 | `embedding::tests::prop_embedding_request_validation_matches_spec` | Passed |
 
 ## 4. 计划约束（v0.7+ 未实现；不计入本次覆盖率）
 
@@ -350,7 +366,8 @@
 
 - MCP：采样回调（server → client 请求）与服务端通知订阅（progress / list_changed）。
 - JSON Schema 剩余关键字（`pattern` / `multipleOf` / `format` 等，见 §2.27 说明）。
-- 向量检索等外部记忆后端（SPI 已在 §2.26 定义，由生态实现）。
+- 向量检索等外部记忆后端（SPI 已在 §2.26 定义，由生态实现；向量化能力见 §2.30 `EmbeddingProvider`）。
+- rerank（重排序）模型支持：暂缓（OpenRouter 账号级 ZDR 策略拦截 rerank 端点，见 roadmap v1.1）。
 - 序列化兼容：核心类型新增字段需走非破坏性变更评审；枚举新增变体视为破坏性变更。
 - 工程化：`cargo-mutants` 自动化变异测试、`cargo-deny` 依赖审计、文档站点。
 
@@ -397,10 +414,43 @@ flowchart LR
 | v0.7.0 | 2026-10-16 | MCP 完整化（§2.29）：`resources/list` / `resources/read` / `prompts/list` / `prompts/get` 与 HTTP（streamable HTTP）传输 | 新增（非破坏性） |
 | v1.0.0 | 2026-10-17 | crates.io 发布名迁移（`mycelium-agent-*`；导入名不变）与发布工程（元数据 / 许可证 / crate README / 打包预检） | 非破坏性（导入名不变；未发布无存量影响） |
 | v1.0.0 | 2026-10-17 | 公共 API 冻结正式生效：基线 = v0.7.0 API（semver-checks 全量无破坏差异）+ 发布名迁移；CI 增加 semver 门禁 | 冻结 |
+| v1.1.0 | 2026-10-18 | 新增文本向量化契约（§2.30）：`EmbeddingProvider` SPI、`EmbeddingRequest` / `EmbeddingResponse` 构造即校验、OpenAI 兼容 `/embeddings` 实现 | 新增（非破坏性） |
 
 ## 6. 验证报告（FC-Verification Report）
 
-### 6.1 v1.0（2026-10-17）
+### 6.1 v1.1（2026-10-18）
+
+- 验证日期：2026-10-18
+- 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
+- 执行命令与结果：
+  - `cargo test --workspace --all-features`：**248 个单元 / 集成测试 + 16 个 doctest** 全部通过
+    （1 个 doctest 为 `ignore`）；
+  - `cargo clippy --workspace --all-targets --all-features -- -D warnings`：零告警；
+  - `cargo fmt --all --check`：通过；
+  - `RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --all-features`：通过；
+  - `cargo deny check`：`advisories / bans / licenses / sources` 全部通过。
+- **公共 API 兼容性**：`cargo-semver-checks 0.51.0`，7 个冻结 crate 对 `v1.0.0` 基线全量验证，
+  全部 `no semver update required`（Embedding 属非破坏性新增，无枚举变体与 wire 变更）。
+- **真实联调**（七场景全通过；原始日志 `docs/integration/2026-10-18-v1.1/`）：
+  - 场景 1-6（DeepSeek V4.1-Flash）：文本 + 思考链（`reasoning_tokens=68`）、`add` 往返（42）、
+    MCP 文件系统（14 工具，`read_text_file`）、多轮会话持久化 / 恢复、子 Agent 编排、
+    MCP 资源 7 个 / 提示模板 4 个（`server-everything`）；
+  - 场景 7（新增，OpenRouter × `openai/text-embedding-3-small`）：3 条输入默认 1536 维、
+    `dimensions=64` 降维生效、同义句余弦相似度 **0.9180 > 0.1068**（无关句）、usage 回传
+    （`prompt_tokens=34`）；`transcript.log` 含两次 `/embeddings` 请求体（含 `dimensions`）
+    与运行时校验摘要（`vectors=3 dimensions=1536`、`vectors=1 dimensions=64`）。
+- 追溯覆盖率：§2 与 §3 共 **163 条**约束（155 + §2.30 的 7 条 + §3 的 `FC-INV-040`），
+  100% 映射且全部 `Passed`（见状态列）。
+- 证伪抽查（Falsification Check，FSVDD §4.2.4）：
+
+| # | 故意破坏的约束 | 预期变红测试 | 结果 |
+| :--- | :--- | :--- | :--- |
+| F29 | 批量上限放宽 1 步（2049 仍接受） | `embedding::tests::new_rejects_too_many_inputs` | 变红 ✓（已还原） |
+| F30 | 响应不再按 `index` 排序（维持到达顺序） | `embedding::tests::response_accepts_and_sorts_by_index` | 变红 ✓（已还原） |
+| F31 | 重复 `index` 不再拒绝（静默接受） | `embedding::tests::response_rejects_duplicate_index` | 变红 ✓（已还原） |
+| F32 | `dimensions = 0` 不再拒绝 | `embedding::tests::with_dimensions_rejects_zero` | 变红 ✓（已还原） |
+
+### 6.2 v1.0（2026-10-17）
 
 - 验证日期：2026-10-17
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -428,7 +478,7 @@ flowchart LR
   `docs/integration/2026-10-16-readme-e2e/ci-startup-failure.txt`；本地全套验证通过，
   解锁后 CI（fmt/clippy/test、MSRV、打包预检、semver 门禁）即可真实生效。
 
-### 6.2 v0.7（历史）
+### 6.3 v0.7（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -452,7 +502,7 @@ flowchart LR
 | F27 | SSE 不按 id 匹配（取首条） | `http::tests::sse_response_is_matched_by_id` | 变红 ✓（已还原） |
 | F28 | 提示参数 `required` 缺省改为 `true` | `client::tests::list_prompts_maps_specs` | 变红 ✓（已还原） |
 
-### 6.3 v0.6（历史）
+### 6.4 v0.6（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -475,7 +525,7 @@ flowchart LR
 | F23 | `oneOf` 允许多分支同时命中 | `schema::tests::one_of_requires_exactly_one_branch` | 变红 ✓（已还原） |
 | F24 | 工具 span 移除 `instrument` | `engine::tests::run_emits_structured_spans` | 变红 ✓（已还原） |
 
-### 6.4 v0.5（历史）
+### 6.5 v0.5（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -502,7 +552,7 @@ flowchart LR
 | F19 | 取消不传播到子运行 | `engine::tests::agent_tool_propagates_cancel_to_child` | 变红 ✓（已还原） |
 | F20 | `AgentTool` 缺 `prompt` 不再校验 | `agent_tool::tests::missing_prompt_is_rejected` | 变红 ✓（已还原） |
 
-### 6.5 v0.4（历史）
+### 6.6 v0.4（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -529,7 +579,7 @@ flowchart LR
 | F15 | 结构化工具结果降级为纯文本 | `engine::tests::structured_tool_result_is_fed_back_intact` | 变红 ✓（已还原） |
 | F16 | 降级判据反转（可重试不降级） | `fallback::tests::falls_back_on_retryable_error` | 变红 ✓（已还原） |
 
-### 6.6 v0.3（历史）
+### 6.7 v0.3（历史）
 
 - 验证日期：2026-10-16
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -563,7 +613,7 @@ flowchart LR
 > F9 首轮未变红暴露了原测试的弱点：它只校验 `call_id` 顺序，而 `call_id` 本身由调用顺序 zip 生成，
 > 内容错位无法被发现。已按 FSVDD 要求强化测试（校验 `call_id` 与 `content` 的对应关系）并复验通过。
 
-### 6.7 v0.2（历史）
+### 6.8 v0.2（历史）
 
 - 验证日期：2026-10-14
 - 工具链：rustc / cargo 1.97.1（stable，x86_64-unknown-linux-gnu）
@@ -584,7 +634,7 @@ flowchart LR
 | F7 | 工具错误改为直接终止（不回灌） | `engine::tests::failing_tool_error_is_fed_back` | 变红 ✓（已还原） |
 | F8 | 429 限流映射改为普通 Api 错误 | `provider::tests::maps_error_status_rules` | 变红 ✓（已还原） |
 
-### 6.8 v0.1（历史）
+### 6.9 v0.1（历史）
 
 - 验证日期：2026-10-14；结果：55 个单元 / 属性测试 + 4 个 doctest 全部通过；clippy / fmt / doc 零告警。
 - 证伪抽查 F1 ~ F4（工具名长度上限、重名注册覆盖、转移边删除、饱和加法改回绕）全部按预期变红后还原。

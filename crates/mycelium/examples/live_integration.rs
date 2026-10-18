@@ -9,14 +9,17 @@
 //! - `report.md`：环境、场景与断言结果汇总。
 //!
 //! 场景：① 文本 + 思考链；② `#[tool]` 工具往返；③ MCP 文件系统；④ 多轮会话（持久化 + 恢复）；
-//! ⑤ 子 Agent 编排（agent-as-tool）；⑥ MCP 资源与提示模板（协议能力探测）。
+//! ⑤ 子 Agent 编排（agent-as-tool）；⑥ MCP 资源与提示模板（协议能力探测）；
+//! ⑦ 文本向量化（Embedding，经 OpenRouter 网关；DeepSeek 无 embedding 端点）。
 //!
 //! 隐私说明：`Authorization` 请求头**不进入日志**（仅请求体与响应行落盘）。
 //!
-//! 前置：仓库根目录 `.env` 配置 `DEEPSEEK_API_KEY`；本机可用 `npx`；网络可达 api.deepseek.com。
+//! 前置：仓库根目录 `.env` 配置 `DEEPSEEK_API_KEY`（场景 1-6）与 `OPENROUTER_API_KEY`
+//! （场景 7，可选；未配置时该场景显式跳过并记录）；本机可用 `npx`；网络可达
+//! api.deepseek.com 与 openrouter.ai。
 //!
 //! 运行：
-//! `cargo run -p mycelium --features provider-openai --example live_integration -- docs/integration/2026-10-16`
+//! `cargo run -p mycelium-agent --features provider-openai --example live_integration -- docs/integration/2026-10-16`
 // 示例代码可放宽 unwrap / expect 限制（规范允许：测试与示例代码）。
 #![allow(clippy::expect_used)]
 
@@ -39,6 +42,10 @@ use tracing_subscriber::prelude::*;
 const DEFAULT_BASE_URL: &str = "https://api.deepseek.com/v1";
 /// 默认模型（DeepSeek-V4.1-Flash）。
 const DEFAULT_MODEL: &str = "deepseek-flash";
+/// OpenRouter 网关（场景 7：文本向量化；DeepSeek 无 embedding 端点）。
+const DEFAULT_OPENROUTER_BASE_URL: &str = "https://openrouter.ai/api/v1";
+/// 默认向量化模型（OpenRouter 代理 OpenAI）。
+const DEFAULT_EMBEDDING_MODEL: &str = "openai/text-embedding-3-small";
 
 /// 加法工具（演示 `#[tool]` 派生宏）。
 #[tool]
@@ -195,6 +202,26 @@ fn assistant_block_text(
                 .collect::<String>()
         })
         .unwrap_or_default()
+}
+
+/// 余弦相似度（f64 累加降低浮点误差；要求维度一致且非空）。
+fn cosine_similarity(a: &[f32], b: &[f32]) -> f64 {
+    assert_eq!(a.len(), b.len(), "余弦相似度要求维度一致");
+    assert!(!a.is_empty(), "余弦相似度要求非空向量");
+    let mut dot = 0.0_f64;
+    let mut norm_a = 0.0_f64;
+    let mut norm_b = 0.0_f64;
+    for (x, y) in a.iter().zip(b.iter()) {
+        let x = f64::from(*x);
+        let y = f64::from(*y);
+        dot += x * y;
+        norm_a += x * x;
+        norm_b += y * y;
+    }
+    if norm_a == 0.0 || norm_b == 0.0 {
+        return 0.0;
+    }
+    dot / (norm_a.sqrt() * norm_b.sqrt())
 }
 
 #[tokio::main]
@@ -483,7 +510,113 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     everything.shutdown().await?;
     client.shutdown().await?;
 
-    // 9) 汇总报告
+    // 9) 场景 7：文本向量化（Embedding；DeepSeek 无此端点，经 OpenRouter 网关）
+    println!("== 场景 7：文本向量化（Embedding）==");
+    let openrouter_key = std::env::var("OPENROUTER_API_KEY")
+        .ok()
+        .or_else(|| dotenv.get("OPENROUTER_API_KEY").cloned());
+    match openrouter_key {
+        None => {
+            println!("   ⚠️ 未配置 OPENROUTER_API_KEY，跳过（不影响其余场景）");
+            report_items.push(
+                "| 7 | 文本向量化（Embedding） | 未配置 `OPENROUTER_API_KEY`，跳过 |".to_owned(),
+            );
+        }
+        Some(openrouter_key) => {
+            let base_url = std::env::var("OPENROUTER_BASE_URL")
+                .ok()
+                .or_else(|| dotenv.get("OPENROUTER_BASE_URL").cloned())
+                .unwrap_or_else(|| DEFAULT_OPENROUTER_BASE_URL.to_owned());
+            let model_name = std::env::var("OPENROUTER_EMBEDDING_MODEL")
+                .ok()
+                .or_else(|| dotenv.get("OPENROUTER_EMBEDDING_MODEL").cloned())
+                .unwrap_or_else(|| DEFAULT_EMBEDDING_MODEL.to_owned());
+            let provider: Arc<dyn EmbeddingProvider> = Arc::new(
+                OpenAiProvider::builder()
+                    .api_key(openrouter_key)
+                    .base_url(&base_url)
+                    .build()?,
+            );
+
+            // 默认维度：同义句相似度应高于无关句（真实语义校验，而非仅检查非空）。
+            let request = EmbeddingRequest::new(
+                ModelId::new(&model_name)?,
+                vec![
+                    "mycelium 是一个 Rust agent SDK".to_owned(),
+                    "mycelium is a Rust agent SDK".to_owned(),
+                    "今天天气很好，适合出门散步。".to_owned(),
+                ],
+            )?;
+            let response = provider.embed(request).await?;
+            assert_eq!(response.embeddings.len(), 3, "场景 7：应返回 3 条向量");
+            let dimensions = response.embeddings[0].vector.len();
+            assert!(dimensions > 0, "场景 7：向量维度应大于 0");
+            assert!(
+                response
+                    .embeddings
+                    .iter()
+                    .all(|item| item.vector.len() == dimensions),
+                "场景 7：各条向量维度应一致"
+            );
+            let related = cosine_similarity(
+                &response.embeddings[0].vector,
+                &response.embeddings[1].vector,
+            );
+            let unrelated = cosine_similarity(
+                &response.embeddings[0].vector,
+                &response.embeddings[2].vector,
+            );
+            assert!(
+                related > unrelated,
+                "场景 7：同义句相似度（{related:.4}）应高于无关句（{unrelated:.4}）"
+            );
+
+            // 显式降维：dimensions 必须生效。
+            let reduced = provider
+                .embed(
+                    EmbeddingRequest::new(
+                        ModelId::new(&model_name)?,
+                        vec!["dimension check".to_owned()],
+                    )?
+                    .with_dimensions(64)?,
+                )
+                .await?;
+            assert_eq!(
+                reduced.embeddings[0].vector.len(),
+                64,
+                "场景 7：dimensions=64 应生效"
+            );
+
+            let usage = response.usage.map(|usage| {
+                serde_json::json!({
+                    "prompt_tokens": usage.prompt_tokens,
+                    "total_tokens": usage.total_tokens,
+                })
+            });
+            let snapshot = serde_json::json!({
+                "model": response.model,
+                "count": response.embeddings.len(),
+                "dimensions": dimensions,
+                "reduced_dimensions": reduced.embeddings[0].vector.len(),
+                "similarity_related": related,
+                "similarity_unrelated": unrelated,
+                "usage": usage,
+            });
+            std::fs::write(
+                output_dir.join("scenario7_embeddings_outcome.json"),
+                serde_json::to_string_pretty(&snapshot)?,
+            )?;
+
+            println!(
+                "   model={model_name} 条数=3 默认维度={dimensions} 降维=64 相似度（相关 {related:.4} > 无关 {unrelated:.4}）"
+            );
+            report_items.push(format!(
+                "| 7 | 文本向量化（Embedding，OpenRouter） | model={model_name}；条数=3；默认维度={dimensions}；降维=64；相似度：相关 {related:.4} > 无关 {unrelated:.4} |"
+            ));
+        }
+    }
+
+    // 10) 汇总报告
     let generated_at_ms = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|elapsed| u64::try_from(elapsed.as_millis()).unwrap_or(u64::MAX))
@@ -494,7 +627,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
          - 模型：`{DEFAULT_MODEL}`（DeepSeek-V4.1-Flash）\n\
          - 生成时间（Unix 毫秒）：`{generated_at_ms}`\n\
          - 隐私：`Authorization` 请求头不进入日志（仅请求体与响应行落盘）\n\
-         - 重放：`cargo run -p mycelium --features provider-openai --example live_integration -- <目录>`\n\n\
+         - 重放：`cargo run -p mycelium-agent --features provider-openai --example live_integration -- <目录>`\n\n\
          ## 场景与结果\n\n\
          | # | 场景 | 结果 |\n|---|------|------|\n{}\n\n\
          ## 产物\n\n\

@@ -8,7 +8,9 @@ use futures_util::StreamExt;
 use mycelium_core::error::ModelError;
 use mycelium_core::message::{ContentBlock, Role, ToolResultBlock};
 use mycelium_core::{AgentConfig, Message, ModelId, ToolError, ToolName, ToolSpec, Usage};
-use mycelium_model::{ModelDelta, ModelProvider, ModelRequest, async_trait};
+use mycelium_model::{
+    EmbeddingProvider, EmbeddingRequest, ModelDelta, ModelProvider, ModelRequest, async_trait,
+};
 use mycelium_provider_openai::OpenAiProvider;
 use mycelium_runtime::{AgentRuntime, RunInput};
 use mycelium_tools::{Tool, ToolContext, ToolOutput};
@@ -26,6 +28,8 @@ struct StubServer {
 enum StubResponse {
     /// 200 + `text/event-stream`。
     Sse(String),
+    /// 200 + `application/json`。
+    Json(String),
     /// 指定状态码 + JSON 体。
     Error { status: u16, body: String },
 }
@@ -80,6 +84,12 @@ impl StubResponse {
         match self {
             Self::Sse(body) => format!(
                 "HTTP/1.1 200 OK\r\ncontent-type: text/event-stream\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            )
+            .into_bytes(),
+            Self::Json(body) => format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{}",
                 body.len(),
                 body
             )
@@ -360,6 +370,96 @@ async fn e2e_error_status_maps_to_api_error() {
             }) if code.as_deref() == Some("invalid_api_key")
         ),
         "期望 401 Api 错误"
+    );
+    server.join().await;
+}
+
+#[tokio::test]
+async fn e2e_embeddings_round_trip() {
+    let first = serde_json::json!({
+        "object": "list",
+        "model": "text-embedding-3-small",
+        "data": [
+            {"object": "embedding", "index": 1, "embedding": [0.5, 0.25]},
+            {"object": "embedding", "index": 0, "embedding": [1.0, 0.0]}
+        ],
+        "usage": {"prompt_tokens": 4, "total_tokens": 4}
+    })
+    .to_string();
+    let second = serde_json::json!({
+        "object": "list",
+        "data": [
+            {"object": "embedding", "index": 0, "embedding": [0.1, 0.2, 0.3, 0.4]}
+        ],
+        "usage": {"prompt_tokens": 2, "total_tokens": 2}
+    })
+    .to_string();
+    let server =
+        StubServer::start(vec![StubResponse::Json(first), StubResponse::Json(second)]).await;
+
+    let provider = OpenAiProvider::builder()
+        .api_key("test-key")
+        .base_url(server.base_url())
+        .build()
+        .expect("构建 Provider");
+
+    // 默认维度：按 index 排序，模型 / 用量精确映射。
+    let request = EmbeddingRequest::new(
+        ModelId::new("text-embedding-3-small").expect("模型标识"),
+        vec!["你好".to_owned(), "hello".to_owned()],
+    )
+    .expect("构造请求");
+    let response = provider.embed(request).await.expect("向量化成功");
+    assert_eq!(response.embeddings.len(), 2);
+    assert_eq!(response.embeddings[0].index, 0);
+    assert_eq!(response.embeddings[0].vector, vec![1.0, 0.0]);
+    assert_eq!(response.embeddings[1].index, 1);
+    assert_eq!(response.embeddings[1].vector, vec![0.5, 0.25]);
+    assert_eq!(response.model.as_deref(), Some("text-embedding-3-small"));
+    assert_eq!(response.usage.map(|usage| usage.total_tokens), Some(4));
+
+    // 显式降维：dimensions 必须进入请求体。
+    let request = EmbeddingRequest::new(
+        ModelId::new("text-embedding-3-small").expect("模型标识"),
+        vec!["hello".to_owned()],
+    )
+    .expect("构造请求")
+    .with_dimensions(4)
+    .expect("合法维度");
+    let response = provider.embed(request).await.expect("向量化成功");
+    assert_eq!(response.embeddings[0].vector.len(), 4);
+
+    let requests = server.requests();
+    assert_eq!(requests.len(), 2);
+    assert!(requests[0].contains("\"model\":\"text-embedding-3-small\""));
+    assert!(requests[0].contains("\"input\":[\"你好\",\"hello\"]"));
+    assert!(!requests[0].contains("\"dimensions\""));
+    assert!(requests[1].contains("\"dimensions\":4"));
+    server.join().await;
+}
+
+#[tokio::test]
+async fn e2e_embeddings_error_status_maps_to_api_error() {
+    let server = StubServer::start(vec![StubResponse::Error {
+        status: 429,
+        body: r#"{"error":{"message":"slow down","code":"rate_limit"}}"#.to_owned(),
+    }])
+    .await;
+
+    let provider = OpenAiProvider::builder()
+        .api_key("bad")
+        .base_url(server.base_url())
+        .build()
+        .expect("构建 Provider");
+    let request = EmbeddingRequest::new(
+        ModelId::new("text-embedding-3-small").expect("模型标识"),
+        vec!["hi".to_owned()],
+    )
+    .expect("构造请求");
+    let result = provider.embed(request).await;
+    assert!(
+        matches!(result, Err(ModelError::RateLimited { .. })),
+        "429 应映射为 RateLimited"
     );
     server.join().await;
 }

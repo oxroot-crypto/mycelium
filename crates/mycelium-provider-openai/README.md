@@ -1,8 +1,8 @@
 # mycelium-agent-provider-openai
 
-> OpenAI-compatible model provider (Chat Completions, streaming SSE, reasoning) for the **mycelium** agent SDK.
+> OpenAI-compatible model provider (Chat Completions, streaming SSE, reasoning, embeddings) for the **mycelium** agent SDK.
 >
-> **mycelium** 的 OpenAI 兼容 Provider：Chat Completions、流式 SSE 与思考链。
+> **mycelium** 的 OpenAI 兼容 Provider：Chat Completions、流式 SSE、思考链与文本向量化（`/embeddings`）。
 
 - crates.io 包名：`mycelium-agent-provider-openai`；Rust 导入名：`mycelium_provider_openai`（`[lib] name` 固定，`use mycelium_provider_openai::…` 直接可用）
 - 使用入口：请依赖门面 crate [`mycelium-agent`](https://crates.io/crates/mycelium-agent)（`features = ["provider-openai"]`）或本 crate

@@ -109,6 +109,7 @@ flowchart TB
 | `RunHooks` | `mycelium-runtime` | 观测与拦截（异步审计 / 指标） | v0.5 已异步化（RFC-0001）；改写能力见后续 RFC |
 | `SessionStore` | `mycelium-runtime` | 会话持久化（可插拔存储后端） | v0.5 已提供内存 / 文件实现；数据库 / 云存储在生态侧 |
 | `Memory` | `mycelium-runtime` | 跨会话长期记忆（写入 / 召回 / 遗忘） | v0.6 已提供 SPI 与朴素内存实现；向量检索在生态侧 |
+| `EmbeddingProvider` | `mycelium-model` | 文本向量化（批量输入 / `dimensions` 降维；请求与响应构造即校验） | v1.1 已提供 SPI 与 OpenAI 兼容 `/embeddings` 实现 |
 | MCP 服务 | `mycelium-mcp` | 以 stdio / streamable HTTP 接入 MCP 生态（工具 / 资源 / 提示模板） | v0.3 工具；v0.7 资源 / 提示 / HTTP |
 
 ## 8. 错误模型
@@ -178,8 +179,13 @@ v0.6 已完成：长期记忆 SPI（`Memory` + `InMemoryMemory`）、JSON Schema
 v0.7 已完成：MCP 完整化 —— 资源（`resources/list` / `read`）、提示模板（`prompts/list` / `get`）、
 streamable HTTP 传输（会话头 / JSON 与 SSE / 通知 202）与 `Transport` 抽象重构。
 
+v1.0 已完成：公共 API 冻结（发布名 `mycelium-agent-*`、semver 门禁、迁移指南）与 crates.io 首发。
+
+v1.1 已完成：文本向量化（Embedding）——`EmbeddingProvider` SPI（请求 / 响应构造即校验）、
+OpenAI 兼容 `/embeddings` 实现（批量、`dimensions` 降维）与 OpenRouter 真实联调。
+
 尚未实现（见 roadmap）：MCP 采样回调与通知订阅、剩余 JSON Schema 关键字、外部记忆后端、
-cargo-mutants / cargo-deny。
+rerank（暂缓：OpenRouter 账号级 ZDR 拦截 rerank 端点，待可用提供方后评估）。
 
 - 生命周期与状态机：`docs/architecture/lifecycle.md`
 - 形式化约束矩阵：`docs/spec/core.md`

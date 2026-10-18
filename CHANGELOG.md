@@ -6,6 +6,21 @@
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-18
+
+**文本向量化（Embedding）**
+
+- 新增 `EmbeddingProvider` SPI（`mycelium-agent-model`）：`EmbeddingRequest` / `EmbeddingResponse`
+  构造即校验（批量上限 2048、输入非空白、维度非零；响应条数 / `index` 排列 / 非空向量 /
+  维度一致 / 有限数值全量校验，契约 [`docs/spec/core.md`](docs/spec/core.md) §2.30）
+- `mycelium-agent-provider-openai`：`OpenAiProvider` 实现 `EmbeddingProvider`，调用 OpenAI 兼容
+  `/embeddings`（批量输入与 `dimensions` 降维；错误映射与聊天路径一致，结构违约显式返回
+  `ModelError::InvalidResponse`）
+- 门面 `prelude` 导出全部 Embedding 类型（新增属非破坏性；不涉及枚举变体与 wire 变更）
+- 真实联调：新增场景 7（OpenRouter，`openai/text-embedding-3-small`）——同义句余弦相似度 >
+  无关句、`dimensions=64` 降维实测生效（日志 `docs/integration/2026-10-18-v1.1/`）
+- 契约：FC-Matrix 新增 §2.30（7 条）与 §3 属性测试 `FC-INV-040`
+
 ## [1.0.0] - 2026-10-17
 
 **公共 API 冻结**
@@ -91,7 +106,8 @@
 - 运行状态机（全路径测试）、错误分类矩阵、FC-Matrix 与测试 1:1 映射
 - CI（fmt / clippy / test）与 PBT（proptest）
 
-[Unreleased]: https://github.com/oxroot-crypto/mycelium/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/oxroot-crypto/mycelium/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/oxroot-crypto/mycelium/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/oxroot-crypto/mycelium/compare/v0.7.0...v1.0.0
 [0.7.0]: https://github.com/oxroot-crypto/mycelium/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/oxroot-crypto/mycelium/compare/v0.5.0...v0.6.0

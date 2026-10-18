@@ -13,7 +13,7 @@
 | crate（发布名） | 冻结面 |
 | :--- | :--- |
 | `mycelium-agent-core` | `Message` / `ContentBlock` / `ToolResultBlock` / `Role` / `ToolSpec` / `ToolCall` / `ToolChoice` / `AgentEvent` / `AgentEventKind` / `RunState` / `RunEvent` / `InvalidRunTransition` / `AgentConfig` / `AgentConfigBuilder` / `ReasoningOptions` / `RetryPolicy` / `StopReason` / `Usage` / `ModelResponse` / 全部 ID 类型 / 错误类型（变体与数据字段，文案不冻结）/ serde wire 标签与字段名 |
-| `mycelium-agent-model` | `ModelProvider` / `ModelRequest` / `ModelDelta` / `ModelStream` / `ModelCapabilities` / `DeltaAssembler` / `FallbackProvider` / `FallbackError` / `stream_from_deltas` |
+| `mycelium-agent-model` | `ModelProvider` / `EmbeddingProvider` / `ModelRequest` / `EmbeddingRequest` / `EmbeddingRequestError` / `ModelDelta` / `EmbeddingResponse` / `EmbeddingResponseError` / `EmbeddingUsage` / `EmbeddingVector` / `MAX_EMBEDDING_INPUTS` / `ModelStream` / `ModelCapabilities` / `DeltaAssembler` / `FallbackProvider` / `FallbackError` / `stream_from_deltas` |
 | `mycelium-agent-tools` | `Tool` / `ToolContext` / `ToolOutput` / `ToolRegistry` / `RegistryError` / `ToolPolicy` 家族（`AllowAll` / `AllowList` / `DenyList` / `PolicyDecision`）/ `schema::validate_arguments` / `SchemaViolation` / `#[tool]` 宏的**生成约定**（`<Fn>Tool` 结构体与 `<fn>_tool()` 帮助函数） |
 | `mycelium-agent-runtime` | `AgentRuntime` / `AgentRuntimeBuilder` / `BuildError` / `AgentRun` / `RunFuture` / `AgentEventStream` / `RunHooks` / `RunContext` / `RunInput` / `RunOutcome` / `Session` / `SessionStore` 家族 / `Memory` 家族 / `AgentTool`；`mycelium.run` / `mycelium.step` / `mycelium.tool` 结构化 span 的名称与关键字段 |
 | `mycelium-agent-mcp` | `McpClient` / `McpServerInfo` / `McpTool` / `McpError` / `McpResource` / `McpResourceContent` / `McpPrompt` / `McpPromptArgument` / `McpPromptMessage` / `PROTOCOL_VERSION` / `MAX_LIST_PAGES` |
@@ -50,3 +50,9 @@
 - [x] 确认 CHANGELOG 覆盖全部历史破坏性变更（0.2.0 / 0.3.0 的枚举新增变体条目已补注 **BREAKING**）
 - [x] 撰写迁移指南：`docs/architecture/migration-v0-to-v1.md`（v0.1 → v1.0）
 - [x] 记录基线与日期：**v1.0.0**（发布 tag），2026-10-17；冻结面 = v0.7.0 API + 零破坏性差异 + 发布名迁移
+
+## 5. 冻结面增量记录（发布后）
+
+| 版本 | 增量 | 类型 | 验证 |
+| :--- | :--- | :--- | :--- |
+| v1.1.0（2026-10-18） | `mycelium-agent-model` 新增 Embedding 类型（`EmbeddingProvider` / `EmbeddingRequest` / `EmbeddingRequestError` / `EmbeddingResponse` / `EmbeddingResponseError` / `EmbeddingUsage` / `EmbeddingVector` / `MAX_EMBEDDING_INPUTS`）；门面 `prelude` 对应导出；`mycelium-agent-provider-openai` 的 `OpenAiProvider` 新增 `EmbeddingProvider` 实现 | 非破坏性新增（新增 trait / 类型 / impl；无枚举变体与 wire 变更），纳入冻结面 | `cargo-semver-checks` 对基线 `v1.0.0`：`no semver update required` |

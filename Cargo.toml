@@ -14,7 +14,7 @@ members = [
 ]
 
 [workspace.package]
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 # MSRV：以已在 stable 1.97.1 完成验证的最低次版本声明，不得声称未验证的支持范围。
@@ -27,13 +27,13 @@ readme = "README.md"
 # （v1.0.0 步骤见 docs/architecture/release-v1.0-runbook.md）。
 
 [workspace.dependencies]
-mycelium-agent-core = { path = "crates/mycelium-core", version = "1.0.0" }
-mycelium-agent-macros = { path = "crates/mycelium-macros", version = "1.0.0" }
-mycelium-agent-mcp = { path = "crates/mycelium-mcp", version = "1.0.0" }
-mycelium-agent-model = { path = "crates/mycelium-model", version = "1.0.0" }
-mycelium-agent-provider-openai = { path = "crates/mycelium-provider-openai", version = "1.0.0" }
-mycelium-agent-runtime = { path = "crates/mycelium-runtime", version = "1.0.0" }
-mycelium-agent-tools = { path = "crates/mycelium-tools", version = "1.0.0" }
+mycelium-agent-core = { path = "crates/mycelium-core", version = "1.1.0" }
+mycelium-agent-macros = { path = "crates/mycelium-macros", version = "1.1.0" }
+mycelium-agent-mcp = { path = "crates/mycelium-mcp", version = "1.1.0" }
+mycelium-agent-model = { path = "crates/mycelium-model", version = "1.1.0" }
+mycelium-agent-provider-openai = { path = "crates/mycelium-provider-openai", version = "1.1.0" }
+mycelium-agent-runtime = { path = "crates/mycelium-runtime", version = "1.1.0" }
+mycelium-agent-tools = { path = "crates/mycelium-tools", version = "1.1.0" }
 
 async-trait = "0.1"
 futures-core = "0.3"

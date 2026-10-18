@@ -1,0 +1,48 @@
+{
+  "messages": [
+    {
+      "content": [
+        {
+          "id": "call_00_ET_WDggBkMN4i1ZgdyUhsSJ1767",
+          "input": {
+            "prompt": "1+1 等于几？只回复数字"
+          },
+          "name": "ask_child",
+          "type": "tool_use"
+        }
+      ],
+      "role": "assistant"
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "text": "2",
+              "type": "text"
+            }
+          ],
+          "is_error": false,
+          "tool_call_id": "call_00_ET_WDggBkMN4i1ZgdyUhsSJ1767",
+          "type": "tool_result"
+        }
+      ],
+      "role": "tool"
+    },
+    {
+      "content": [
+        {
+          "text": "子 Agent 的回答是：**2**",
+          "type": "text"
+        }
+      ],
+      "role": "assistant"
+    }
+  ],
+  "steps": 2,
+  "usage": {
+    "input_tokens": 733,
+    "output_tokens": 58,
+    "reasoning_tokens": 0
+  }
+}

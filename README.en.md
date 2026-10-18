@@ -14,10 +14,10 @@
 
 English | [简体中文](README.md)
 
-> **Status: v1.0.0 (public API frozen).** Execution loop, concurrent tools, tool policies, retry & fallback, MCP
+> **Status: v1.1.0 (public API frozen).** Execution loop, concurrent tools, tool policies, retry & fallback, MCP
 > (tools / resources / prompts over stdio and HTTP), reasoning, multi-turn sessions, sub-agent
-> orchestration and a structured event stream are all available, verified against DeepSeek
-> V4.1-Flash; see [CHANGELOG.md](CHANGELOG.md) and the
+> orchestration, a structured event stream and text embeddings are all available, verified against
+> DeepSeek V4.1-Flash (chat) and OpenRouter (embeddings); see [CHANGELOG.md](CHANGELOG.md) and the
 > [roadmap](docs/architecture/roadmap.md).
 
 A Rust agent SDK built around a **layered, product-agnostic core**: the same abstractions embed
@@ -42,7 +42,8 @@ into an application (framework shape) and can grow into a local agent runtime (s
 - **Execution loop** — model → tools → feedback, with step / token / duration budgets, cancellation and timeouts
 - **Streaming assembly** — text, reasoning and tool-call deltas assembled incrementally (`DeltaAssembler`)
 - **MCP client** — stdio and streamable HTTP; tools / resources / prompts
-- **Six SPI extension points** — `ModelProvider`, `Tool`, `ToolPolicy`, `SessionStore`, `Memory`, `RunHooks`
+- **Seven SPI extension points** — `ModelProvider`, `Tool`, `ToolPolicy`, `SessionStore`, `Memory`, `RunHooks`, `EmbeddingProvider`
+- **Text embeddings** — Embedding SPI and OpenAI-compatible `/embeddings` (batching, `dimensions` reduction, validated requests and responses)
 - **Tool ecosystem** — JSON Schema argument validation, structured tool results, order-preserving concurrency, `#[tool]` derive macro
 - **Sessions & sub-agents** — persist / restore conversations; sub-agent orchestration via `AgentTool`
 - **Observability** — structured event stream (contiguous `seq`), tracing spans, raw interaction logs
@@ -52,7 +53,7 @@ into an application (framework shape) and can grow into a local agent runtime (s
 ```text
 mycelium-agent (facade: re-exports + prelude)
    ├── mycelium-agent-runtime (execution loop / events / sessions / hooks)
-   │      ├── mycelium-agent-model (ModelProvider SPI / streaming assembler)
+   │      ├── mycelium-agent-model (ModelProvider / EmbeddingProvider SPI / streaming assembler)
    │      └── mycelium-agent-tools (Tool SPI / registry / validation / policy)
    ├── mycelium-agent-provider-openai (OpenAI-compatible provider, DeepSeek ready)
    ├── mycelium-agent-mcp (MCP client: stdio + HTTP, tools / resources / prompts)
@@ -66,12 +67,12 @@ mycelium-agent (facade: re-exports + prelude)
 | Crate (crates.io package) | Responsibility |
 | :--- | :--- |
 | `mycelium-agent-core` | Domain kernel: ids, messages (incl. thinking blocks), tool protocol, events, run state machine, error taxonomy, configuration |
-| `mycelium-agent-model` | Model provider SPI: `ModelProvider` / `ModelRequest` / `ModelDelta` / streaming assembler |
+| `mycelium-agent-model` | Model provider SPI: `ModelProvider` / `EmbeddingProvider` / `ModelRequest` / `ModelDelta` / streaming assembler |
 | `mycelium-agent-tools` | Tool SPI, registry, argument validation (JSON Schema subset), tool policies, `#[tool]` macro |
 | `mycelium-agent-runtime` | Execution engine: `AgentRuntime` / concurrent tools / budgets / cancellation / `AgentRun` / `Session` / `RunHooks` |
 | `mycelium-agent-macros` | Proc macros: `#[tool]` generates the tool impl and JSON Schema from a function |
 | `mycelium-agent-mcp` | MCP client: stdio and streamable HTTP; tools / resources / prompts |
-| `mycelium-agent-provider-openai` | OpenAI-compatible provider (Chat Completions, streaming SSE, reasoning) |
+| `mycelium-agent-provider-openai` | OpenAI-compatible provider (Chat Completions, streaming SSE, reasoning, `/embeddings`) |
 | `mycelium-agent` | Facade: unified re-exports and `prelude` (optional feature: `provider-openai`) |
 
 Further reading:
@@ -99,14 +100,14 @@ Further reading:
 # Cargo.toml
 [dependencies]
 # crates.io package mycelium-agent; Rust import name is pinned to mycelium (use mycelium::prelude::*;)
-mycelium-agent = "1.0"
+mycelium-agent = "1.1"
 # Optional: OpenAI-compatible provider; or enable the facade feature instead (below)
-mycelium-agent-provider-openai = "1.0"
+mycelium-agent-provider-openai = "1.1"
 ```
 
 ```toml
 # Equivalent: facade only, provider behind a feature flag
-mycelium-agent = { version = "1.0", features = ["provider-openai"] }
+mycelium-agent = { version = "1.1", features = ["provider-openai"] }
 ```
 
 To follow the latest development version on `main`, use a git dependency:
@@ -300,6 +301,35 @@ fn sub_agent(child: Arc<AgentRuntime>) -> Result<Arc<dyn Tool>, Box<dyn std::err
 }
 ```
 
+### Text embeddings
+
+The embedding SPI (`EmbeddingProvider`) validates at construction time; `OpenAiProvider` in
+`mycelium-agent-provider-openai` implements it against the OpenAI-compatible `/embeddings`
+endpoint (batching and `dimensions` reduction):
+
+```rust
+use mycelium::prelude::*;
+
+#[allow(dead_code)]
+async fn embed_texts(provider: &dyn EmbeddingProvider) -> Result<(), Box<dyn std::error::Error>> {
+    // Validated at construction: 1..=2048 inputs, none blank, dimensions >= 1.
+    let request = EmbeddingRequest::new(
+        ModelId::new("text-embedding-3-small")?,
+        vec!["mycelium".to_owned(), "agent SDK".to_owned()],
+    )?
+    .with_dimensions(256)?; // Optional: dimension reduction (unsupported models return a provider error)
+
+    let response: EmbeddingResponse = provider.embed(request).await?;
+    // embeddings[i].index == i (aligned with the input order); model / usage may be absent.
+    println!("dimensions: {}", response.embeddings[0].vector.len());
+    Ok(())
+}
+```
+
+Responses are validated item by item (count / `index` permutation / non-empty vectors / consistent
+dimensions / finite values); any structural violation surfaces as
+`ModelError::InvalidResponse` instead of being silently tolerated.
+
 ## ⚙️ Configuration
 
 All options supported by `AgentConfig::builder()` (keys are the real method names):
@@ -328,6 +358,9 @@ Environment variables used by the examples (template: [`.env.example`](.env.exam
 | `DEEPSEEK_MODEL` | `deepseek-flash` | Model name |
 | `OPENAI_API_KEY` | required | Used by `OpenAiProvider::from_env()` |
 | `OPENAI_BASE_URL` | `https://api.openai.com/v1` | Used by `OpenAiProvider::from_env()` |
+| `OPENROUTER_API_KEY` | required for scenario 7 | OpenRouter gateway (real embedding integration; DeepSeek has no embeddings endpoint) |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter gateway URL |
+| `OPENROUTER_EMBEDDING_MODEL` | `openai/text-embedding-3-small` | Embedding model (OpenRouter model name) |
 
 ## 🧪 Development
 
@@ -349,8 +382,8 @@ cargo deny check        # dependency audit (advisories / licenses / sources); in
 
 ## 🗺️ Roadmap
 
-- Released: all milestones v0.1 → v1.0 (architecture skeleton → API freeze and the crates.io
-  release); tags and the snapshot table in
+- Released: all milestones v0.1 → v1.1 (architecture skeleton → API freeze and the crates.io
+  release → text embeddings); tags and the snapshot table in
   [`docs/architecture/roadmap.md`](docs/architecture/roadmap.md).
 - In progress (v1.x): MCP sampling callbacks and server notification subscriptions, remaining
   JSON Schema keywords, external memory backends.
