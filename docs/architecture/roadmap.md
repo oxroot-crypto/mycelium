@@ -2,7 +2,7 @@
 
 > 原则：每一档必须保持 `cargo build / test / clippy / fmt` 全绿，且 FC-Matrix 与测试同步演进。
 
-## 进度快照（截至 v1.0.0）
+## 进度快照（截至 v1.1.0）
 
 | 版本 | 发布日 | 提交（git tag） | 主题 | 状态 |
 | :--- | :--- | :--- | :--- | :--- |
@@ -15,6 +15,7 @@
 | v0.7.0 | 2026-10-16 | `29318cc`（`v0.7.0`） | MCP 资源 / 提示模板 / streamable HTTP 传输 | ✅ 已发布 |
 | v0.7.x | — | — | MCP 采样回调 / 通知订阅、剩余 Schema 关键字、外部记忆后端（转入 v1.x） | ⏳ 规划中 |
 | v1.0.0 | 2026-10-17 | `571e451`（`v1.0.0`） | API 冻结：发布名迁移、semver 门禁、迁移指南、发布工程 | ✅ 已发布 |
+| v1.1.0 | 2026-10-18 | `4d93ba6`（`v1.1.0`） | 文本向量化：`EmbeddingProvider` SPI、OpenAI 兼容 `/embeddings`、真实联调场景 7 | ✅ 已发布 |
 
 工程数据（截至 v1.1.0）：
 
@@ -139,6 +140,11 @@
 - [x] 契约与追溯：FC-Matrix §2.30（7 条）+ §3 属性测试 `FC-INV-040`；门面 prelude 导出全部类型
 - [x] 真实联调场景 7（OpenRouter × `openai/text-embedding-3-small`：同义句相似度 > 无关句、
   `dimensions=64` 降维生效；日志 `docs/integration/2026-10-18-v1.1/`）
+- [x] crates.io 发布：8 个包按依赖拓扑（core → macros → model → tools → mcp → runtime →
+  provider-openai → 门面）全部 1.1.0 上架
+- [x] 发布后：docs.rs 构建通过（`mycelium-agent` / `mycelium-agent-model` 文档页可访问）；
+  crates.io 消费者冒烟（门面 feature + `EmbeddingProvider` 动态调用）通过；CI semver 基线更新为 `v1.1.0`
+- [ ] GitHub Release：待维护者创建（本机无 `gh` CLI / token；建议以 tag `v1.1.0` + CHANGELOG 1.1.0 摘要生成）
 - [ ] rerank 支持：暂缓（OpenRouter 账号级 ZDR 策略拦截全部 rerank 端点；待可用提供方后重新评估）
 
 ## 工程化 backlog

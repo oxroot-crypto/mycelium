@@ -44,7 +44,7 @@
 - [x] 遍历冻结面逐项确认签名与语义：7 个冻结 crate 经 `cargo-semver-checks` 对 `v0.7.0` 基线全量验证，
       全部 `no semver update required`；`cargo doc --workspace --no-deps --all-features` 零告警
 - [x] 引入 `cargo-semver-checks` 作为 CI 门禁：`.github/workflows/ci.yml` 的 `semver` job，
-      基线 tag `v1.0.0`（tag 创建后自动生效；此前诚实跳过）；
+      基线 tag `v1.0.0`（tag 创建后自动生效；此前诚实跳过）；v1.1.0 发布后基线更新为 `v1.1.0`；
       `cargo-public-api` 未引入（0.52.0 于当前工具链编译失败，semver-checks 已覆盖门禁需求）
 - [x] 确认 `__private` 未被任何文档或示例引用（仅 `mycelium-agent-macros` 的生成代码内部引用）
 - [x] 确认 CHANGELOG 覆盖全部历史破坏性变更（0.2.0 / 0.3.0 的枚举新增变体条目已补注 **BREAKING**）

@@ -441,6 +441,9 @@ flowchart LR
     与运行时校验摘要（`vectors=3 dimensions=1536`、`vectors=1 dimensions=64`）。
 - 追溯覆盖率：§2 与 §3 共 **163 条**约束（155 + §2.30 的 7 条 + §3 的 `FC-INV-040`），
   100% 映射且全部 `Passed`（见状态列）。
+- **安装验证**（crates.io 1.1.0）：独立 consumer 工程经注册表依赖门面
+  （`features = ["provider-openai"]`）编译运行通过（Embedding 构造校验、`EmbeddingProvider`
+  动态调用）；docs.rs 构建通过（8 个包按依赖拓扑发布，见 roadmap v1.1 记录）。
 - 证伪抽查（Falsification Check，FSVDD §4.2.4）：
 
 | # | 故意破坏的约束 | 预期变红测试 | 结果 |

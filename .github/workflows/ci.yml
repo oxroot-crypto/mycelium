@@ -73,9 +73,9 @@ jobs:
       - uses: taiki-e/install-action@cargo-semver-checks
       - name: Check API compatibility vs baseline tag
         run: |
-          BASELINE="v1.0.0"
+          BASELINE="v1.1.0"
           if ! git rev-parse -q --verify "refs/tags/${BASELINE}" >/dev/null; then
-            echo "基线 tag ${BASELINE} 尚未创建（v1.0.0 发布后生效），跳过 API 兼容检查。"
+            echo "基线 tag ${BASELINE} 尚未创建（发布后生效），跳过 API 兼容检查。"
             exit 0
           fi
           for pkg in mycelium-agent-core mycelium-agent-model mycelium-agent-tools \
